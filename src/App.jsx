@@ -4,25 +4,25 @@ import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
 const COLORS = {
-  bg: '#0C0F0A',
-  card: '#141812',
-  cardBorder: '#1E2419',
-  accent: '#C4A55A',
-  accentDim: 'rgba(196,165,90,0.15)',
-  green: '#4CAF7D',
-  greenDim: 'rgba(76,175,125,0.15)',
-  red: '#D4574E',
-  redDim: 'rgba(212,87,78,0.15)',
-  blue: '#5B8DB8',
-  blueDim: 'rgba(91,141,184,0.15)',
-  purple: '#8B7BB8',
-  purpleDim: 'rgba(139,123,184,0.15)',
-  coral: '#D4825A',
-  teal: '#5AAFAF',
-  text: '#E8E4DB',
-  textMuted: '#8A8677',
-  textDim: '#5A5747',
-  gridLine: 'rgba(255,255,255,0.04)',
+  bg: '#FFFFFF',
+  card: '#FFFFFF',
+  cardBorder: '#E8E8E6',
+  accent: '#2383E2',
+  accentDim: 'rgba(35,131,226,0.08)',
+  green: '#0F7B6C',
+  greenDim: 'rgba(15,123,108,0.08)',
+  red: '#E03E3E',
+  redDim: 'rgba(224,62,62,0.06)',
+  blue: '#2383E2',
+  blueDim: 'rgba(35,131,226,0.08)',
+  purple: '#6940A5',
+  purpleDim: 'rgba(105,64,165,0.08)',
+  coral: '#D9730D',
+  teal: '#0F7B6C',
+  text: '#37352F',
+  textMuted: '#787774',
+  textDim: '#B4B4B0',
+  gridLine: 'rgba(55,53,47,0.06)',
 }
 
 const fmt = (v) => '£' + Math.abs(v).toLocaleString('en-GB', { maximumFractionDigits: 0 })
@@ -50,20 +50,21 @@ function MetricCard({ label, value, sub, color }) {
     <div style={{
       background: COLORS.card,
       border: `1px solid ${COLORS.cardBorder}`,
-      borderRadius: 12,
+      borderRadius: 8,
       padding: '20px 24px',
       flex: 1,
       minWidth: 180,
+      boxShadow: 'rgba(15,15,15,0.04) 0px 1px 3px',
     }}>
       <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 28, fontFamily: '"DM Serif Display", serif', color: color || COLORS.text, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 28, fontFamily: 'inherit', fontWeight: 700, color: color || COLORS.text, lineHeight: 1.1 }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: color || COLORS.textMuted, marginTop: 6 }}>{sub}</div>}
     </div>
   )
 }
 
 function SectionTitle({ children }) {
-  return <h2 style={{ fontFamily: '"DM Serif Display", serif', fontSize: 22, color: COLORS.text, margin: '48px 0 20px', fontWeight: 400 }}>{children}</h2>
+  return <h2 style={{ fontFamily: 'inherit', fontSize: 18, color: COLORS.text, margin: '48px 0 16px', fontWeight: 600, letterSpacing: '-0.01em' }}>{children}</h2>
 }
 
 function Legend({ items }) {
@@ -90,7 +91,7 @@ function DataRow({ label, value, sub, color, bold }) {
         <span style={{ fontSize: 14, color: COLORS.text, fontWeight: bold ? 600 : 400 }}>{label}</span>
         {sub && <span style={{ fontSize: 12, color: COLORS.textMuted, marginLeft: 8 }}>{sub}</span>}
       </div>
-      <span style={{ fontSize: 14, fontFamily: '"DM Sans", sans-serif', fontWeight: 600, color: color || COLORS.text, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      <span style={{ fontSize: 14, fontFamily: 'inherit', fontWeight: 600, color: color || COLORS.text, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
     </div>
   )
 }
@@ -100,8 +101,9 @@ function Card({ children, style }) {
     <div style={{
       background: COLORS.card,
       border: `1px solid ${COLORS.cardBorder}`,
-      borderRadius: 12,
+      borderRadius: 8,
       padding: '24px 28px',
+      boxShadow: 'rgba(15,15,15,0.04) 0px 1px 3px',
       ...style,
     }}>
       {children}
@@ -112,10 +114,24 @@ function Card({ children, style }) {
 const chartDefaults = {
   responsive: true,
   maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#FFFFFF',
+      titleColor: '#37352F',
+      bodyColor: '#37352F',
+      borderColor: '#E8E8E6',
+      borderWidth: 1,
+      cornerRadius: 6,
+      padding: 10,
+      titleFont: { weight: '600', family: '"Inter"' },
+      bodyFont: { family: '"Inter"' },
+      boxPadding: 4,
+    },
+  },
   scales: {
-    x: { grid: { color: COLORS.gridLine }, ticks: { color: COLORS.textDim, font: { size: 11, family: '"DM Sans"' } } },
-    y: { grid: { color: COLORS.gridLine }, ticks: { color: COLORS.textDim, font: { size: 11, family: '"DM Sans"' } } },
+    x: { grid: { color: COLORS.gridLine }, ticks: { color: COLORS.textMuted, font: { size: 11, family: '"Inter"' } } },
+    y: { grid: { color: COLORS.gridLine }, ticks: { color: COLORS.textMuted, font: { size: 11, family: '"Inter"' } } },
   },
 }
 
@@ -146,34 +162,34 @@ export default function App() {
 
   return (
     <div style={{
-      background: COLORS.bg,
+      background: '#F7F6F3',
       minHeight: '100vh',
-      fontFamily: '"DM Sans", sans-serif',
+      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       color: COLORS.text,
     }}>
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '40px 24px 80px' }}>
         {/* Header */}
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 12, color: COLORS.accent, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>Financial Audit</div>
-          <h1 style={{ fontFamily: '"DM Serif Display", serif', fontSize: 36, fontWeight: 400, margin: 0, lineHeight: 1.15 }}>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Financial Audit</div>
+          <h1 style={{ fontFamily: 'inherit', fontSize: 32, fontWeight: 700, margin: 0, lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.02em' }}>
             March 2026
           </h1>
-          <p style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 8 }}>Thomas Littler — Complete financial position</p>
+          <p style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>Thomas Littler — Complete financial position</p>
         </div>
 
         {/* Nav */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 32, marginBottom: 40, borderBottom: `1px solid ${COLORS.cardBorder}`, paddingBottom: 0 }}>
+        <div style={{ display: 'flex', gap: 0, marginTop: 32, marginBottom: 40, borderBottom: `1px solid ${COLORS.cardBorder}`, paddingBottom: 0 }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '10px 18px',
-              fontSize: 13,
-              fontFamily: '"DM Sans", sans-serif',
+              padding: '8px 16px',
+              fontSize: 14,
+              fontFamily: 'inherit',
               fontWeight: activeTab === t.id ? 600 : 400,
-              color: activeTab === t.id ? COLORS.accent : COLORS.textMuted,
-              borderBottom: activeTab === t.id ? `2px solid ${COLORS.accent}` : '2px solid transparent',
+              color: activeTab === t.id ? COLORS.text : COLORS.textMuted,
+              borderBottom: activeTab === t.id ? `2px solid ${COLORS.text}` : '2px solid transparent',
               marginBottom: -1,
-              transition: 'all 0.2s',
+              transition: 'color 0.15s',
             }}>{t.label}</button>
           ))}
         </div>
@@ -206,7 +222,7 @@ function OverviewTab() {
             labels: ['GIA — S&P 500', 'Home Equity', 'GIA — Money Mkt', 'ISA', 'Pension', 'GIA — EM', 'Cash'],
             datasets: [{
               data: [761835, 397525, 203448, 73497, 66918, 52398, 4306],
-              backgroundColor: [COLORS.blue, COLORS.coral, COLORS.teal, COLORS.green, COLORS.purple, COLORS.accent, COLORS.textDim],
+              backgroundColor: [COLORS.blue, COLORS.coral, COLORS.teal, COLORS.green, COLORS.purple, '#D9730D', COLORS.textDim],
               borderRadius: 4, barPercentage: 0.65,
             }]
           },
@@ -231,31 +247,39 @@ function OverviewTab() {
 
       <SectionTitle>Key findings</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-        <Card>
-          <div style={{ fontSize: 12, color: COLORS.red, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Critical</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Wrapper inefficiency</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
+        <Card style={{ borderLeft: '3px solid #E03E3E' }}>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#E03E3E', background: 'rgba(224,62,62,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Critical</span>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>Wrapper inefficiency</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
             87.9% of your Vanguard portfolio sits in a taxable GIA. ISA holds only 6.3%. You have ~£148k in unrealised gains exposed to CGT. A Bed & ISA programme sheltering £20k/year should start immediately.
           </div>
         </Card>
-        <Card>
-          <div style={{ fontSize: 12, color: COLORS.accent, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Action</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Mortgage reset — May 2027</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
+        <Card style={{ borderLeft: '3px solid #D9730D' }}>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#D9730D', background: 'rgba(217,115,13,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Action</span>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>Mortgage reset — May 2027</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
             Your 1.4% Santander deal ends May 2027. Current 5-year fixes are ~4.4%. Monthly payment jumps from £1,139 to ~£1,650. Start researching products by Nov 2026.
           </div>
         </Card>
-        <Card>
-          <div style={{ fontSize: 12, color: COLORS.teal, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Opportunity</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>£150k money market drag</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
+        <Card style={{ borderLeft: '3px solid #0F7B6C' }}>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#0F7B6C', background: 'rgba(15,123,108,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Opportunity</span>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>£150k money market drag</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
             After the Porsche (~£50k), £150k remains in Sterling Money Market earning ~4.5%. Equities return ~7% long-run. The gap on £150k is ~£4k/year compounding. Deploy or accept the drag consciously.
           </div>
         </Card>
         <Card>
-          <div style={{ fontSize: 12, color: COLORS.green, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>On Track</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Pension contributions</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#0F7B6C', background: 'rgba(15,123,108,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>On Track</span>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>Pension contributions</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
             £2,125/month employer contributions flowing. HMRC tax relief arriving correctly. Salary sacrificed to £63,750 — well below £100k threshold for childcare entitlements.
           </div>
         </Card>
@@ -337,7 +361,7 @@ function PortfolioTab() {
           <DataRow label="ISA" sub="VUAG, LS100" value="£73,497" color={COLORS.green} />
           <DataRow label="Pension" sub="LS100, LS Global" value="£66,918" color={COLORS.purple} />
           <DataRow label="Cash" sub="Vanguard accounts" value="£27" />
-          <div style={{ marginTop: 20, padding: 16, background: COLORS.redDim, borderRadius: 8 }}>
+          <div style={{ marginTop: 20, padding: '14px 16px', background: 'rgba(224,62,62,0.04)', borderRadius: 4, borderLeft: '3px solid #E03E3E' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.red, marginBottom: 4 }}>GIA CGT exposure</div>
             <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>
               ~£148k unrealised gain. At 20% CGT above £3k allowance = ~£29k potential tax liability. Bed & ISA £20k/year to shelter.
@@ -434,11 +458,11 @@ function PropertyTab() {
           return (
             <Card key={i} style={isRecommended ? { border: `2px solid ${COLORS.accent}` } : {}}>
               {isRecommended && (
-                <div style={{ fontSize: 11, color: COLORS.accent, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 600 }}>
-                  Recommended
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#2383E2', background: 'rgba(35,131,226,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Recommended</span>
                 </div>
               )}
-              <div style={{ fontFamily: '"DM Serif Display", serif', fontSize: 20, marginBottom: 4 }}>{p.name}</div>
+              <div style={{ fontFamily: 'inherit', fontSize: 18, fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
               <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 20 }}>{p.type} — {p.beds} bed, {p.baths} bath — {p.sqft}</div>
 
               <DataRow label="Asking price" value={fmt(p.price)} />
@@ -482,15 +506,15 @@ function PropertyTab() {
 
       <SectionTitle>Critical notes</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Card>
+        <Card style={{ borderLeft: '3px solid #E03E3E' }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: COLORS.red }}>Sell London first</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
             If you buy York before selling London, you'll face a 5% additional property surcharge — ~£41k on an £825k purchase. Reclaim within 36 months, but capital is locked. Sequence correctly to avoid.
           </div>
         </Card>
-        <Card>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: COLORS.accent }}>PPR relief — check tax residency</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.6 }}>
+        <Card style={{ borderLeft: '3px solid #D9730D' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: COLORS.coral }}>PPR relief — check tax residency</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
             You've been living in Spain and applying for residency. If HMRC treats Spain as your main residence, you could lose full Principal Private Residence relief on the London sale and owe CGT. Get tax advice before selling.
           </div>
         </Card>
@@ -529,10 +553,10 @@ function ProjectionTab() {
           data: {
             labels: years,
             datasets: [
-              { label: '7% return + £4.2k/mo', data: p7, borderColor: COLORS.blue, backgroundColor: COLORS.blueDim, fill: true, tension: 0.3, pointRadius: 2 },
+              { label: '7% return + £4.2k/mo', data: p7, borderColor: COLORS.blue, backgroundColor: 'rgba(35,131,226,0.06)', fill: true, tension: 0.3, pointRadius: 2 },
               { label: '5% return + £4.2k/mo', data: p5, borderColor: COLORS.teal, fill: false, tension: 0.3, pointRadius: 2, borderDash: [4, 4] },
               { label: '7% return + £2k/mo (children)', data: p7low, borderColor: COLORS.purple, fill: false, tension: 0.3, pointRadius: 2, borderDash: [8, 4] },
-              { label: '£5m target', data: years.map(() => 5000000), borderColor: 'rgba(196,165,90,0.3)', borderDash: [6, 4], pointRadius: 0, fill: false },
+              { label: '£5m target', data: years.map(() => 5000000), borderColor: 'rgba(55,53,47,0.15)', borderDash: [6, 4], pointRadius: 0, fill: false },
             ]
           },
           options: {
@@ -565,11 +589,11 @@ function ProjectionTab() {
 
       <SectionTitle>Annual action items</SectionTitle>
       <Card>
-        <DataRow label="Bed & ISA" sub="Sell/rebuy VUAG within ISA" value="£20,000/year" color={COLORS.green} />
-        <DataRow label="Pension contributions" sub="Employer via salary sacrifice" value="£25,500/year" />
-        <DataRow label="Personal pension top-ups" sub="Opportunistic, tax-efficient" value="Variable" />
-        <DataRow label="CGT harvest" sub="Use £3k annual exemption + Clara's" value="£6,000/year" />
-        <DataRow label="ISA for Clara" sub="If married, use her ISA allowance too" value="£20,000/year" color={COLORS.accent} />
+        <DataRow label="☐ Bed & ISA" sub="Sell/rebuy VUAG within ISA" value="£20,000/year" color={COLORS.green} />
+        <DataRow label="☐ Pension contributions" sub="Employer via salary sacrifice" value="£25,500/year" />
+        <DataRow label="☐ Personal pension top-ups" sub="Opportunistic, tax-efficient" value="Variable" />
+        <DataRow label="☐ CGT harvest" sub="Use £3k annual exemption + Clara's" value="£6,000/year" />
+        <DataRow label="☐ ISA for Clara" sub="If married, use her ISA allowance too" value="£20,000/year" color={COLORS.accent} />
       </Card>
     </>
   )
