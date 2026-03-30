@@ -1,7 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Chart, registerables } from 'chart.js'
 
 Chart.register(...registerables)
+
+const DemoContext = createContext(false)
+const useDemo = () => useContext(DemoContext)
+
+const blurStyle = { filter: 'blur(7px)', userSelect: 'none', pointerEvents: 'none' }
 
 const COLORS = {
   bg: '#FFFFFF',
@@ -33,19 +38,21 @@ const pct = (v) => (v * 100).toFixed(1) + '%'
 function ChartCanvas({ id, config, height = 280 }) {
   const ref = useRef(null)
   const chartRef = useRef(null)
+  const demo = useDemo()
   useEffect(() => {
     if (chartRef.current) chartRef.current.destroy()
     chartRef.current = new Chart(ref.current, config)
     return () => { if (chartRef.current) chartRef.current.destroy() }
   }, [])
   return (
-    <div style={{ position: 'relative', width: '100%', height }}>
+    <div style={{ position: 'relative', width: '100%', height, ...(demo ? blurStyle : {}) }}>
       <canvas ref={ref} id={id} />
     </div>
   )
 }
 
 function MetricCard({ label, value, sub, color }) {
+  const demo = useDemo()
   return (
     <div style={{
       background: COLORS.card,
@@ -57,8 +64,8 @@ function MetricCard({ label, value, sub, color }) {
       boxShadow: 'rgba(15,15,15,0.04) 0px 1px 3px',
     }}>
       <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 28, fontFamily: 'inherit', fontWeight: 700, color: color || COLORS.text, lineHeight: 1.1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: color || COLORS.textMuted, marginTop: 6 }}>{sub}</div>}
+      <div style={{ fontSize: 28, fontFamily: 'inherit', fontWeight: 700, color: color || COLORS.text, lineHeight: 1.1, ...(demo ? blurStyle : {}) }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: color || COLORS.textMuted, marginTop: 6, ...(demo ? blurStyle : {}) }}>{sub}</div>}
     </div>
   )
 }
@@ -68,8 +75,9 @@ function SectionTitle({ children }) {
 }
 
 function Legend({ items }) {
+  const demo = useDemo()
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px 20px', marginTop: 12 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px 20px', marginTop: 12, ...(demo ? blurStyle : {}) }}>
       {items.map(([label, color], i) => (
         <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: COLORS.textMuted }}>
           <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: 'inline-block', flexShrink: 0 }} />
@@ -81,6 +89,7 @@ function Legend({ items }) {
 }
 
 function DataRow({ label, value, sub, color, bold }) {
+  const demo = useDemo()
   return (
     <div style={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
@@ -91,7 +100,7 @@ function DataRow({ label, value, sub, color, bold }) {
         <span style={{ fontSize: 14, color: COLORS.text, fontWeight: bold ? 600 : 400 }}>{label}</span>
         {sub && <span style={{ fontSize: 12, color: COLORS.textMuted, marginLeft: 8 }}>{sub}</span>}
       </div>
-      <span style={{ fontSize: 14, fontFamily: 'inherit', fontWeight: 600, color: color || COLORS.text, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      <span style={{ fontSize: 14, fontFamily: 'inherit', fontWeight: 600, color: color || COLORS.text, fontVariantNumeric: 'tabular-nums', ...(demo ? blurStyle : {}) }}>{value}</span>
     </div>
   )
 }
@@ -151,6 +160,7 @@ function sdlt(price) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('overview')
+  const [demo, setDemo] = useState(false)
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -161,6 +171,7 @@ export default function App() {
   ]
 
   return (
+    <DemoContext.Provider value={demo}>
     <div style={{
       background: '#F7F6F3',
       minHeight: '100vh',
@@ -169,12 +180,27 @@ export default function App() {
     }}>
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '40px 24px 80px' }}>
         {/* Header */}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Financial Audit</div>
-          <h1 style={{ fontFamily: 'inherit', fontSize: 32, fontWeight: 700, margin: 0, lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.02em' }}>
-            March 2026
-          </h1>
-          <p style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>Thomas Littler — Complete financial position</p>
+        <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Financial Audit</div>
+            <h1 style={{ fontFamily: 'inherit', fontSize: 32, fontWeight: 700, margin: 0, lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.02em' }}>
+              March 2026
+            </h1>
+            <p style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>Thomas Littler — Complete financial position</p>
+          </div>
+          <button onClick={() => setDemo(d => !d)} style={{
+            background: demo ? COLORS.text : COLORS.card,
+            color: demo ? '#FFFFFF' : COLORS.textMuted,
+            border: `1px solid ${COLORS.cardBorder}`,
+            borderRadius: 6,
+            padding: '6px 14px',
+            fontSize: 13,
+            fontFamily: 'inherit',
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            whiteSpace: 'nowrap',
+          }}>{demo ? 'Show numbers' : 'Hide numbers'}</button>
         </div>
 
         {/* Nav */}
@@ -201,10 +227,12 @@ export default function App() {
         {activeTab === 'projection' && <ProjectionTab />}
       </div>
     </div>
+    </DemoContext.Provider>
   )
 }
 
 function OverviewTab() {
+  const demo = useDemo()
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
@@ -252,7 +280,7 @@ function OverviewTab() {
             <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#E03E3E', background: 'rgba(224,62,62,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Critical</span>
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>Wrapper inefficiency</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65, ...(demo ? blurStyle : {}) }}>
             87.9% of your Vanguard portfolio sits in a taxable GIA. ISA holds only 6.3%. You have ~£148k in unrealised gains exposed to CGT. A Bed & ISA programme sheltering £20k/year should start immediately.
           </div>
         </Card>
@@ -261,7 +289,7 @@ function OverviewTab() {
             <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#D9730D', background: 'rgba(217,115,13,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Action</span>
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>Mortgage reset — May 2027</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65, ...(demo ? blurStyle : {}) }}>
             Your 1.4% Santander deal ends May 2027. Current 5-year fixes are ~4.4%. Monthly payment jumps from £1,139 to ~£1,650. Start researching products by Nov 2026.
           </div>
         </Card>
@@ -270,7 +298,7 @@ function OverviewTab() {
             <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#0F7B6C', background: 'rgba(15,123,108,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Opportunity</span>
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>£150k money market drag</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65, ...(demo ? blurStyle : {}) }}>
             After the Porsche (~£50k), £150k remains in Sterling Money Market earning ~4.5%. Equities return ~7% long-run. The gap on £150k is ~£4k/year compounding. Deploy or accept the drag consciously.
           </div>
         </Card>
@@ -279,7 +307,7 @@ function OverviewTab() {
             <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#0F7B6C', background: 'rgba(15,123,108,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>On Track</span>
           </div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>Pension contributions</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65, ...(demo ? blurStyle : {}) }}>
             £2,125/month employer contributions flowing. HMRC tax relief arriving correctly. Salary sacrificed to £63,750 — well below £100k threshold for childcare entitlements.
           </div>
         </Card>
@@ -289,6 +317,7 @@ function OverviewTab() {
 }
 
 function PortfolioTab() {
+  const demo = useDemo()
   const holdings = [
     { name: 'S&P 500 UCITS ETF (VUAG)', account: 'ISA + GIA', weight: 70.02, cost: 679264, value: 810898, change: 131634 },
     { name: 'Sterling Money Market Fund', account: 'GIA', weight: 17.57, cost: 196300, value: 203448, change: 7148 },
@@ -319,9 +348,9 @@ function PortfolioTab() {
               <div style={{ fontSize: 11, color: COLORS.textMuted }}>{h.account}</div>
             </div>
             <div style={{ color: COLORS.textMuted, textAlign: 'right' }}>{h.weight}%</div>
-            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(h.cost)}</div>
-            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(h.value)}</div>
-            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: h.change >= 0 ? COLORS.green : COLORS.red }}>
+            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', ...(demo ? blurStyle : {}) }}>{fmt(h.cost)}</div>
+            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', ...(demo ? blurStyle : {}) }}>{fmt(h.value)}</div>
+            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: h.change >= 0 ? COLORS.green : COLORS.red, ...(demo ? blurStyle : {}) }}>
               {h.change >= 0 ? '+' : '-'}{fmt(h.change)}
             </div>
           </div>
@@ -329,9 +358,9 @@ function PortfolioTab() {
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', padding: '14px 0', fontSize: 13, fontWeight: 600, borderTop: `2px solid ${COLORS.cardBorder}` }}>
           <div>Total</div>
           <div style={{ textAlign: 'right' }}>100%</div>
-          <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>£995,843</div>
-          <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>£1,158,097</div>
-          <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: COLORS.green }}>+£162,254</div>
+          <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', ...(demo ? blurStyle : {}) }}>£995,843</div>
+          <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', ...(demo ? blurStyle : {}) }}>£1,158,097</div>
+          <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: COLORS.green, ...(demo ? blurStyle : {}) }}>+£162,254</div>
         </div>
       </Card>
 
@@ -363,7 +392,7 @@ function PortfolioTab() {
           <DataRow label="Cash" sub="Vanguard accounts" value="£27" />
           <div style={{ marginTop: 20, padding: '14px 16px', background: 'rgba(224,62,62,0.04)', borderRadius: 4, borderLeft: '3px solid #E03E3E' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.red, marginBottom: 4 }}>GIA CGT exposure</div>
-            <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5, ...(demo ? blurStyle : {}) }}>
               ~£148k unrealised gain. At 20% CGT above £3k allowance = ~£29k potential tax liability. Bed & ISA £20k/year to shelter.
             </div>
           </div>
@@ -430,6 +459,7 @@ function CashFlowTab() {
 }
 
 function PropertyTab() {
+  const demo = useDemo()
   const deposit = 584000
 
   const properties = [
@@ -508,13 +538,13 @@ function PropertyTab() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card style={{ borderLeft: '3px solid #E03E3E' }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: COLORS.red }}>Sell London first</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65, ...(demo ? blurStyle : {}) }}>
             If you buy York before selling London, you'll face a 5% additional property surcharge — ~£41k on an £825k purchase. Reclaim within 36 months, but capital is locked. Sequence correctly to avoid.
           </div>
         </Card>
         <Card style={{ borderLeft: '3px solid #D9730D' }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: COLORS.coral }}>PPR relief — check tax residency</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65, ...(demo ? blurStyle : {}) }}>
             You've been living in Spain and applying for residency. If HMRC treats Spain as your main residence, you could lose full Principal Private Residence relief on the London sale and owe CGT. Get tax advice before selling.
           </div>
         </Card>
