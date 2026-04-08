@@ -25,14 +25,19 @@ Output STRICTLY this JSON shape with no markdown or commentary:
   }
 }
 
-Rules:
+CRITICAL: Output token budget is limited. You MUST follow these rules to avoid truncation:
+- Return at most 60 transactions. If the file has more, return ONLY the most recent 60.
+- Keep "description" under 40 characters — abbreviate aggressively
+- Round amounts to whole numbers
+- Return at most 30 holdings
+
+Other rules:
 - Transaction file: populate "transactions", leave "holdings" empty
 - Holdings/portfolio file: populate "holdings", leave "transactions" empty
 - Mortgage statement: account_type "mortgage", current_balance = outstanding (negative)
 - Numbers only — strip £/$/€ and commas
 - Negative = outgoing, positive = income
 - For holdings: "value" is current market value. Only set "cost" if explicitly given as a separate column. If only one money column exists, treat it as VALUE.
-- Limit transactions to most recent 200 if there are more
 - 0 for missing values, never null
 - Default currency GBP`
 
@@ -59,7 +64,7 @@ export default async function handler(req, res) {
 
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: [
         {
           type: 'text',
@@ -74,16 +79,22 @@ export default async function handler(req, res) {
     })
 
     const text = message.content[0].text.trim()
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
+    const jsonStart = text.indexOf('{')
+    if (jsonStart === -1) {
       return res.status(500).json({ error: 'Could not parse model response', raw: text.slice(0, 500) })
     }
 
     let parsed
     try {
-      parsed = JSON.parse(jsonMatch[0])
+      // First try parsing as-is
+      parsed = JSON.parse(text.slice(jsonStart))
     } catch (parseErr) {
-      return res.status(500).json({ error: 'Invalid JSON: ' + parseErr.message })
+      // JSON was truncated mid-array. Repair by finding the last complete object
+      // before the truncation point and closing the structure.
+      parsed = repairTruncatedJson(text.slice(jsonStart))
+      if (!parsed) {
+        return res.status(500).json({ error: 'Invalid JSON: ' + parseErr.message })
+      }
     }
 
     // Defensive fixup: if a holding has cost > 0 but value == 0, swap them
@@ -100,5 +111,65 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Parse error:', err)
     return res.status(500).json({ error: err.message || 'Internal error' })
+  }
+}
+
+// Attempt to recover a JSON object that was truncated mid-array.
+// Strategy: walk forward, track bracket depth, and on parse failure,
+// snip back to the last complete object inside the open array, then
+// close all open structures.
+function repairTruncatedJson(text) {
+  // Try progressively shorter prefixes ending at a closed object
+  // followed by the right number of closing brackets/braces.
+  const stack = []
+  let inString = false
+  let escape = false
+  let lastSafeEnd = -1 // index immediately after the last fully-closed top-level child
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (escape) { escape = false; continue }
+    if (c === '\\') { escape = true; continue }
+    if (c === '"') { inString = !inString; continue }
+    if (inString) continue
+
+    if (c === '{' || c === '[') {
+      stack.push(c)
+    } else if (c === '}' || c === ']') {
+      stack.pop()
+      // If we're now inside an array (top of stack is '['), this was a complete element
+      if (stack.length > 0 && stack[stack.length - 1] === '[') {
+        lastSafeEnd = i + 1
+      }
+      // If we close the outermost {, parse worked already so we won't hit the repair path
+    }
+  }
+
+  if (lastSafeEnd === -1) return null
+
+  // Build a repaired payload: text up to lastSafeEnd, then close all open brackets in reverse
+  // Re-walk the prefix to know what's open at lastSafeEnd
+  const prefix = text.slice(0, lastSafeEnd)
+  const openStack = []
+  let s = false, e = false
+  for (let i = 0; i < prefix.length; i++) {
+    const c = prefix[i]
+    if (e) { e = false; continue }
+    if (c === '\\') { e = true; continue }
+    if (c === '"') { s = !s; continue }
+    if (s) continue
+    if (c === '{' || c === '[') openStack.push(c)
+    else if (c === '}' || c === ']') openStack.pop()
+  }
+
+  let closing = ''
+  for (let i = openStack.length - 1; i >= 0; i--) {
+    closing += openStack[i] === '{' ? '}' : ']'
+  }
+
+  try {
+    return JSON.parse(prefix + closing)
+  } catch {
+    return null
   }
 }
