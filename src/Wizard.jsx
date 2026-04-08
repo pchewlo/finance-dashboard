@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import { COLORS, Card, Button, Tag, fmt } from './ui.jsx'
 
 export function Welcome({ onStart }) {
@@ -238,24 +239,41 @@ export function CsvUpload({ onSubmit, onBack }) {
   function handleFiles(fileList) {
     const newFiles = Array.from(fileList).filter(f => {
       const name = f.name.toLowerCase()
-      return name.endsWith('.csv') || name.endsWith('.pdf') || f.type === 'text/csv' || f.type === 'application/pdf'
+      return name.endsWith('.csv') || name.endsWith('.pdf') || name.endsWith('.xlsx') || name.endsWith('.xls') || f.type === 'text/csv' || f.type === 'application/pdf'
     })
     if (newFiles.length === 0) {
-      setError('Please upload CSV or PDF files only')
+      setError('Please upload CSV, PDF, or Excel files only')
       return
     }
     setError(null)
 
     Promise.all(newFiles.map(f => new Promise((resolve) => {
-      const isPdf = f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
+      const name = f.name.toLowerCase()
+      const isPdf = name.endsWith('.pdf') || f.type === 'application/pdf'
+      const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls')
       const reader = new FileReader()
       if (isPdf) {
         reader.onload = () => {
-          // strip data URL prefix to get raw base64
           const base64 = String(reader.result).split(',')[1]
           resolve({ name: f.name, type: 'pdf', content: base64 })
         }
         reader.readAsDataURL(f)
+      } else if (isExcel) {
+        reader.onload = () => {
+          try {
+            const workbook = XLSX.read(reader.result, { type: 'array' })
+            // Convert each sheet to CSV, concatenate with sheet labels
+            const csvParts = workbook.SheetNames.map(sheetName => {
+              const sheet = workbook.Sheets[sheetName]
+              const csv = XLSX.utils.sheet_to_csv(sheet)
+              return workbook.SheetNames.length > 1 ? `### Sheet: ${sheetName}\n${csv}` : csv
+            })
+            resolve({ name: f.name, type: 'excel', content: csvParts.join('\n\n') })
+          } catch (err) {
+            resolve({ name: f.name, type: 'excel', content: '', error: 'Could not parse Excel file' })
+          }
+        }
+        reader.readAsArrayBuffer(f)
       } else {
         reader.onload = () => resolve({ name: f.name, type: 'csv', content: reader.result })
         reader.readAsText(f)
@@ -300,7 +318,7 @@ export function CsvUpload({ onSubmit, onBack }) {
       <div style={{ marginBottom: 32 }}>
         <Tag color="orange">Step 2 of 3</Tag>
         <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>Upload your statements</h1>
-        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>Drag in CSV or PDF exports from your bank, broker, or pension provider. We'll auto-detect the format.</p>
+        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>Drag in CSV, Excel, or PDF exports from your bank, broker, or pension provider. We'll auto-detect the format.</p>
       </div>
 
       <div
@@ -319,9 +337,9 @@ export function CsvUpload({ onSubmit, onBack }) {
         }}
       >
         <div style={{ fontSize: 32, marginBottom: 12 }}>📁</div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>Drop CSV or PDF files here</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>Drop CSV, Excel, or PDF files here</div>
         <div style={{ fontSize: 13, color: COLORS.textMuted }}>or click to browse</div>
-        <input ref={inputRef} type="file" multiple accept=".csv,.pdf,text/csv,application/pdf" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
+        <input ref={inputRef} type="file" multiple accept=".csv,.pdf,.xlsx,.xls,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
       </div>
 
       {files.length > 0 && (
@@ -329,7 +347,7 @@ export function CsvUpload({ onSubmit, onBack }) {
           {files.map((f, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#FFFFFF', border: `1px solid ${COLORS.cardBorder}`, borderRadius: 6, marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Tag color={f.type === 'pdf' ? 'red' : 'blue'}>{(f.type || 'csv').toUpperCase()}</Tag>
+                <Tag color={f.type === 'pdf' ? 'red' : f.type === 'excel' ? 'green' : 'blue'}>{(f.type || 'csv').toUpperCase()}</Tag>
                 <div style={{ fontSize: 14, color: COLORS.text }}>{f.name}</div>
               </div>
               <button onClick={() => removeFile(i)} style={{ background: 'none', border: 'none', color: COLORS.textMuted, cursor: 'pointer', fontSize: 13 }}>Remove</button>

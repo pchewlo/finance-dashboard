@@ -30,7 +30,8 @@ export default async function handler(req, res) {
 
     files.forEach((f, i) => {
       const isPdf = f.type === 'pdf'
-      content.push({ type: 'text', text: `\n--- FILE ${i + 1}: ${f.name} (${isPdf ? 'PDF' : 'CSV'}) ---` })
+      const label = isPdf ? 'PDF' : f.type === 'excel' ? 'Excel (converted to CSV)' : 'CSV'
+      content.push({ type: 'text', text: `\n--- FILE ${i + 1}: ${f.name} (${label}) ---` })
       if (isPdf) {
         content.push({
           type: 'document',
