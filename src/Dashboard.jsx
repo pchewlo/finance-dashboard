@@ -563,13 +563,16 @@ function PortfolioAnalytics({ holdings, totalValue }) {
 
 function CashFlow({ finances }) {
   const accounts = finances?.accounts || []
-  const allTx = accounts.flatMap(acc => acc.transactions || [])
+  // Only include true cash-flow accounts (current/savings). Investment account
+  // "transactions" are fund buys/sells which would dwarf real spending.
+  const cashAccounts = accounts.filter(a => ['current', 'savings'].includes(a.account_type))
+  const allTx = cashAccounts.flatMap(acc => acc.transactions || [])
 
   if (allTx.length === 0) {
-    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14 }}>No transaction data detected in your uploaded files.</div></Card>
+    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14 }}>No bank transaction data detected. Upload a current or savings account statement (CSV/PDF) to see cash flow.</div></Card>
   }
 
-  // Group by month
+  // Group by year-month, then keep only the most recent 12 months
   const monthly = {}
   allTx.forEach(tx => {
     if (!tx.date) return
@@ -579,10 +582,11 @@ function CashFlow({ finances }) {
     else monthly[ym].outgoing += tx.amount
   })
 
-  const sortedMonths = Object.keys(monthly).sort()
+  const sortedMonths = Object.keys(monthly).sort().slice(-12)
   const labels = sortedMonths.map(m => {
     const [y, mo] = m.split('-')
-    return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString('en-GB', { month: 'short' })
+    const d = new Date(parseInt(y), parseInt(mo) - 1)
+    return d.toLocaleDateString('en-GB', { month: 'short' }) + ' ' + String(y).slice(2)
   })
   const income = sortedMonths.map(m => monthly[m].income)
   const outgoing = sortedMonths.map(m => monthly[m].outgoing)

@@ -316,10 +316,23 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       // Fire one parallel request per file. Each one is small and fast (Haiku
       // + cached prompt). The slowest file determines total time, not the sum.
       const results = await Promise.all(files.map(async (f) => {
+        // For long files, send a HEADER (start) for metadata + a TAIL (end)
+        // for the most recent transactions. Bank statements are usually
+        // chronological, so the tail has the recent data.
+        const raw = String(f.content || '')
+        let payload
+        if (raw.length <= 80000) {
+          payload = raw
+        } else {
+          const header = raw.slice(0, 8000)
+          const tail = raw.slice(-72000)
+          payload = `${header}\n\n[... older entries omitted ...]\n\n${tail}`
+        }
+
         const res = await fetch('/api/parse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file: { name: f.name, type: f.type, content: String(f.content || '').slice(0, 60000) } }),
+          body: JSON.stringify({ file: { name: f.name, type: f.type, content: payload } }),
           signal: controller.signal,
         })
         if (!res.ok) {
@@ -343,19 +356,23 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
         .filter(a => a.account_type === 'mortgage')
         .reduce((s, a) => s + Math.abs(a.current_balance || 0), 0)
 
-      // Estimate monthly income/outgoing from merged transactions
-      const allTx = accounts.flatMap(a => a.transactions || [])
+      // Estimate monthly income/outgoing from current/savings accounts only.
+      // Investment account "transactions" are fund buys/sells, not real cash flow.
+      const cashTx = accounts
+        .filter(a => ['current', 'savings'].includes(a.account_type))
+        .flatMap(a => a.transactions || [])
       const monthly = {}
-      allTx.forEach(tx => {
+      cashTx.forEach(tx => {
         if (!tx.date) return
         const ym = tx.date.slice(0, 7)
         if (!monthly[ym]) monthly[ym] = { inc: 0, out: 0 }
         if (tx.amount > 0) monthly[ym].inc += tx.amount
         else monthly[ym].out += tx.amount
       })
-      const months = Object.values(monthly)
-      const avgInc = months.length ? months.reduce((s, m) => s + m.inc, 0) / months.length : 0
-      const avgOut = months.length ? months.reduce((s, m) => s + m.out, 0) / months.length : 0
+      // Use last 12 months for average
+      const recentMonths = Object.keys(monthly).sort().slice(-12).map(k => monthly[k])
+      const avgInc = recentMonths.length ? recentMonths.reduce((s, m) => s + m.inc, 0) / recentMonths.length : 0
+      const avgOut = recentMonths.length ? recentMonths.reduce((s, m) => s + m.out, 0) / recentMonths.length : 0
 
       const merged = {
         accounts,

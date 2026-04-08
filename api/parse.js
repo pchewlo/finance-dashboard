@@ -74,7 +74,8 @@ export default async function handler(req, res) {
     }
 
     const label = file.type === 'pdf' ? 'PDF (extracted text)' : file.type === 'excel' ? 'Excel (converted to CSV)' : 'CSV'
-    const truncated = String(file.content).slice(0, 60000)
+    // Client already trimmed to 80k with header+tail strategy. Final safety cap.
+    const truncated = String(file.content).slice(0, 80000)
 
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
