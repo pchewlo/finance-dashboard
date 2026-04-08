@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Chart, registerables } from 'chart.js'
 
 Chart.register(...registerables)
@@ -159,6 +159,77 @@ export function Button({ children, onClick, variant = 'primary', disabled, style
       transition: 'all 0.15s',
       ...style,
     }}>{children}</button>
+  )
+}
+
+export function LoadingState({ messages, title }) {
+  const [idx, setIdx] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    const messageInterval = setInterval(() => {
+      setIdx(i => (i + 1) % messages.length)
+    }, 2400)
+    const timeInterval = setInterval(() => {
+      setElapsed(e => e + 1)
+    }, 1000)
+    return () => {
+      clearInterval(messageInterval)
+      clearInterval(timeInterval)
+    }
+  }, [messages.length])
+
+  return (
+    <>
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+        .shimmer-text {
+          background: linear-gradient(90deg, ${COLORS.text} 0%, ${COLORS.text} 40%, ${COLORS.textDim} 50%, ${COLORS.text} 60%, ${COLORS.text} 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: shimmer 2.5s linear infinite;
+        }
+        .loading-dot {
+          animation: pulse 1.4s ease-in-out infinite;
+        }
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+        .fade-in {
+          animation: fadeIn 0.4s ease-out;
+        }
+      `}</style>
+      <Card style={{ textAlign: 'center', padding: '56px 32px' }}>
+        <div style={{ display: 'inline-flex', gap: 6, marginBottom: 24 }}>
+          <span className="loading-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.text, display: 'inline-block' }} />
+          <span className="loading-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.text, display: 'inline-block' }} />
+          <span className="loading-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.text, display: 'inline-block' }} />
+        </div>
+        {title && (
+          <div className="shimmer-text" style={{ fontSize: 20, fontWeight: 600, marginBottom: 12, letterSpacing: '-0.01em' }}>
+            {title}
+          </div>
+        )}
+        <div key={idx} className="fade-in" style={{ fontSize: 14, color: COLORS.textMuted, minHeight: 22 }}>
+          {messages[idx]}
+        </div>
+        <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 24, letterSpacing: '0.05em' }}>
+          {elapsed}s elapsed
+        </div>
+      </Card>
+    </>
   )
 }
 

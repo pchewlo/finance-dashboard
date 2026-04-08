@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { COLORS, Card, Button, Tag, fmt } from './ui.jsx'
+import { COLORS, Card, Button, Tag, LoadingState, fmt } from './ui.jsx'
 
 export function Welcome({ onStart }) {
   return (
@@ -313,6 +313,31 @@ export function CsvUpload({ onSubmit, onBack }) {
     }
   }
 
+  if (parsing) {
+    return (
+      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+        <div style={{ marginBottom: 32 }}>
+          <Tag color="orange">Step 2 of 3</Tag>
+          <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>Reading your files</h1>
+          <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>This usually takes 15-30 seconds.</p>
+        </div>
+        <LoadingState
+          title="Analyzing your finances"
+          messages={[
+            'Reading your statements...',
+            'Detecting account types and providers...',
+            'Extracting transactions...',
+            'Identifying holdings and balances...',
+            'Categorizing your spending...',
+            'Calculating monthly averages...',
+            'Building your financial summary...',
+            'Almost there...',
+          ]}
+        />
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: 640, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
@@ -405,11 +430,20 @@ export function Recommendations({ goals, finances, onBack }) {
 
   if (loading) {
     return (
-      <Card>
-        <div style={{ textAlign: 'center', padding: '40px 0', color: COLORS.textMuted }}>
-          <div style={{ fontSize: 14 }}>Analyzing your data and generating personalized recommendations...</div>
-        </div>
-      </Card>
+      <LoadingState
+        title="Crafting your plan"
+        messages={[
+          'Reviewing your financial position...',
+          'Cross-referencing with your goals...',
+          'Identifying tax optimization opportunities...',
+          'Checking ISA, GIA, and pension allocation...',
+          'Modeling scenarios to your target...',
+          'Spotting risks and red flags...',
+          'Prioritizing actions by impact...',
+          'Writing your personalized recommendations...',
+          'Adding final touches...',
+        ]}
+      />
     )
   }
 
