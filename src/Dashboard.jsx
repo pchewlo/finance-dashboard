@@ -1,6 +1,87 @@
 import React, { useState, useMemo } from 'react'
 import { COLORS, MetricCard, SectionTitle, Card, DataRow, ChartCanvas, Legend, chartDefaults, useIsMobile, fmt, fmtK, fmtM } from './ui.jsx'
 
+// === ANALYTICS HELPERS ===
+
+// Classify a holding into an asset class based on its name
+function classifyAsset(name = '') {
+  const n = name.toLowerCase()
+  if (/money market|cash fund|sterling fund|gilt|treasury|short.term/.test(n)) return 'Cash equivalent'
+  if (/bond|gilt|fixed interest|corporate debt/.test(n)) return 'Bonds'
+  if (/reit|real estate|property/.test(n)) return 'Property'
+  if (/commodity|gold|silver|oil/.test(n)) return 'Commodities'
+  if (/crypto|bitcoin|ethereum/.test(n)) return 'Crypto'
+  if (/equity|stock|shares|s&p|ftse|nasdaq|index|etf|ucits|lifestrategy|vuag|all-world|all world|emerging market/.test(n)) return 'Equities'
+  return 'Other'
+}
+
+// Classify a holding by geographic exposure
+function classifyGeography(name = '') {
+  const n = name.toLowerCase()
+  if (/s&p|sp 500|s & p|us equity|north america|usa|nasdaq/.test(n)) return 'US'
+  if (/ftse|uk equity|uk index|britain|gilt/.test(n)) return 'UK'
+  if (/emerging market|em equity|emerging stocks|em index/.test(n)) return 'Emerging markets'
+  if (/europe|euro stoxx|eurozone/.test(n)) return 'Europe'
+  if (/japan|asia pacific|asia ex|china|india/.test(n)) return 'Asia'
+  if (/global|world|all.?world|lifestrategy/.test(n)) return 'Global'
+  if (/money market|sterling/.test(n)) return 'UK'
+  return 'Unclassified'
+}
+
+// Detect recurring subscriptions from transactions
+function detectSubscriptions(transactions = []) {
+  // Group by description (normalized) and check for monthly recurring outgoing
+  const groups = {}
+  transactions.forEach(t => {
+    if (t.amount >= 0) return // outgoing only
+    const key = (t.description || '').toLowerCase().replace(/\d+/g, '').trim().slice(0, 30)
+    if (!key) return
+    if (!groups[key]) groups[key] = []
+    groups[key].push(t)
+  })
+  const subs = []
+  Object.entries(groups).forEach(([key, txs]) => {
+    if (txs.length < 2) return
+    // Average amount across occurrences (rounded)
+    const amounts = txs.map(t => Math.abs(t.amount))
+    const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length
+    // Check that amounts are similar (within 10% of avg)
+    const allSimilar = amounts.every(a => Math.abs(a - avg) / avg < 0.15)
+    if (!allSimilar) return
+    // Use the most recent description
+    const desc = txs[txs.length - 1].description || key
+    subs.push({ description: desc, monthly: avg, occurrences: txs.length })
+  })
+  return subs.sort((a, b) => b.monthly - a.monthly)
+}
+
+// Group transactions by category and sum
+function categorizeSpending(transactions = []) {
+  const cats = {}
+  transactions.forEach(t => {
+    if (t.amount >= 0) return // outgoing only
+    const cat = t.category || 'other'
+    if (!cats[cat]) cats[cat] = 0
+    cats[cat] += Math.abs(t.amount)
+  })
+  return Object.entries(cats)
+    .map(([category, total]) => ({ category, total }))
+    .sort((a, b) => b.total - a.total)
+}
+
+// Top merchants/expenses
+function topMerchants(transactions = [], limit = 8) {
+  const groups = {}
+  transactions.forEach(t => {
+    if (t.amount >= 0) return
+    const key = (t.description || 'Unknown').slice(0, 40)
+    if (!groups[key]) groups[key] = { description: key, total: 0, count: 0 }
+    groups[key].total += Math.abs(t.amount)
+    groups[key].count += 1
+  })
+  return Object.values(groups).sort((a, b) => b.total - a.total).slice(0, limit)
+}
+
 // Normalize finances: fix the parser bug where holding cost was set but value was 0
 function normalizeFinances(finances) {
   if (!finances) return finances
@@ -152,6 +233,8 @@ function Overview({ finances, goals }) {
         </>
       )}
 
+      <FinancialHealth finances={finances} goals={goals} netWorthWithProperty={netWorthWithProperty} />
+
       {goals && (
         <>
           <SectionTitle>Your goals</SectionTitle>
@@ -161,6 +244,104 @@ function Overview({ finances, goals }) {
             {goals.current_age && <DataRow label="Current age" value={`${goals.current_age} years old`} />}
             {goals.monthly_savings > 0 && <DataRow label="Planned monthly savings" value={`${fmt(goals.monthly_savings)}/mo`} color={COLORS.green} />}
             {goals.priorities && <DataRow label="Top priority" value={goals.priorities} />}
+          </Card>
+        </>
+      )}
+    </>
+  )
+}
+
+function FinancialHealth({ finances, goals, netWorthWithProperty }) {
+  const summary = finances?.summary || {}
+  const accounts = finances?.accounts || []
+  const totalCash = summary.total_cash || 0
+  const totalInvestments = summary.total_investments || 0
+  const totalLiabilities = (summary.total_liabilities || 0) + (goals?.mortgage_balance || 0)
+  const propertyValue = goals?.property_value || 0
+  const totalAssets = totalCash + totalInvestments + propertyValue
+
+  // Monthly outgoing for emergency fund calc
+  const monthlyOutgoing = Math.abs(summary.monthly_outgoing_avg || 0)
+  const emergencyMonths = monthlyOutgoing > 0 ? totalCash / monthlyOutgoing : 0
+
+  // Liquidity ratio: liquid assets / total assets
+  const liquidPct = totalAssets > 0 ? ((totalCash + totalInvestments) / totalAssets) * 100 : 0
+
+  // Debt-to-asset ratio
+  const debtRatio = totalAssets > 0 ? (totalLiabilities / totalAssets) * 100 : 0
+
+  // Asset diversification: number of "buckets" with meaningful balance
+  const buckets = []
+  if (totalCash > 1000) buckets.push('cash')
+  if (totalInvestments > 1000) buckets.push('investments')
+  if (propertyValue > 0) buckets.push('property')
+  // Check for crypto / pension / etc by account types
+  const types = new Set(accounts.map(a => a.account_type))
+  if (types.has('pension')) buckets.push('pension')
+  if (types.has('crypto')) buckets.push('crypto')
+  const diversificationScore = Math.min(100, buckets.length * 25)
+
+  // IHT exposure (basic): assets above £325k nil-rate band
+  const ihtThreshold = 325000
+  const ihtExposure = Math.max(0, netWorthWithProperty - ihtThreshold)
+  const potentialIht = ihtExposure * 0.40
+
+  return (
+    <>
+      <SectionTitle>Financial health</SectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <Card>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Emergency fund</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: emergencyMonths >= 6 ? COLORS.green : emergencyMonths >= 3 ? COLORS.coral : COLORS.red }}>
+            {emergencyMonths.toFixed(1)} mo
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+            {emergencyMonths >= 6 ? '✓ Solid buffer (6+ months)' : emergencyMonths >= 3 ? 'Building (aim for 6 months)' : '⚠ Below 3 months recommended'}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Liquidity</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.text }}>
+            {liquidPct.toFixed(0)}%
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+            Of assets are liquid (cash + investments)
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Debt ratio</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: debtRatio < 30 ? COLORS.green : debtRatio < 50 ? COLORS.coral : COLORS.red }}>
+            {debtRatio.toFixed(0)}%
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+            {debtRatio < 30 ? '✓ Conservative leverage' : debtRatio < 50 ? 'Moderate leverage' : '⚠ High leverage'}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Diversification</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: diversificationScore >= 75 ? COLORS.green : diversificationScore >= 50 ? COLORS.coral : COLORS.red }}>
+            {diversificationScore}/100
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+            Spread across {buckets.length} asset {buckets.length === 1 ? 'class' : 'classes'}
+          </div>
+        </Card>
+      </div>
+
+      {ihtExposure > 0 && (
+        <>
+          <SectionTitle>Inheritance tax exposure</SectionTitle>
+          <Card style={{ borderLeft: '3px solid #D9730D' }}>
+            <DataRow label="Net worth" value={fmt(netWorthWithProperty)} />
+            <DataRow label="Nil-rate band" value={fmt(ihtThreshold)} sub="2024/25" />
+            <DataRow label="Estate above threshold" value={fmt(ihtExposure)} color={COLORS.coral} />
+            <DataRow label="Potential IHT at 40%" value={fmt(potentialIht)} color={COLORS.red} bold />
+            <div style={{ marginTop: 12, fontSize: 12, color: COLORS.textMuted, lineHeight: 1.5 }}>
+              Note: married couples get a combined £650k allowance, plus a £175k residence nil-rate band each if leaving your home to direct descendants. Speak to a financial advisor about pension wrappers, gifts, and trusts to mitigate.
+            </div>
           </Card>
         </>
       )}
@@ -259,6 +440,124 @@ function Portfolio({ finances }) {
           )
         })}
       </Card>
+
+      <PortfolioAnalytics holdings={allHoldings} totalValue={totalValue} />
+    </>
+  )
+}
+
+function PortfolioAnalytics({ holdings, totalValue }) {
+  // Asset class breakdown
+  const assetClasses = {}
+  holdings.forEach(h => {
+    const cls = classifyAsset(h.name)
+    assetClasses[cls] = (assetClasses[cls] || 0) + (h.value || 0)
+  })
+  const assetEntries = Object.entries(assetClasses).sort((a, b) => b[1] - a[1])
+
+  // Geographic breakdown
+  const geos = {}
+  holdings.forEach(h => {
+    const g = classifyGeography(h.name)
+    geos[g] = (geos[g] || 0) + (h.value || 0)
+  })
+  const geoEntries = Object.entries(geos).sort((a, b) => b[1] - a[1])
+
+  // Concentration risk: top holding as %
+  const sortedByValue = [...holdings].sort((a, b) => (b.value || 0) - (a.value || 0))
+  const topHolding = sortedByValue[0]
+  const topPct = topHolding ? ((topHolding.value || 0) / totalValue) * 100 : 0
+  const top3Pct = sortedByValue.slice(0, 3).reduce((s, h) => s + (h.value || 0), 0) / totalValue * 100
+
+  // HHI concentration index (0-100, lower = more diversified)
+  const hhi = sortedByValue.reduce((s, h) => {
+    const share = (h.value || 0) / totalValue
+    return s + share * share * 100
+  }, 0)
+
+  const palette = [COLORS.blue, COLORS.coral, COLORS.teal, COLORS.green, COLORS.purple, '#D9730D', COLORS.textDim]
+
+  return (
+    <>
+      <SectionTitle>Asset class breakdown</SectionTitle>
+      <Card>
+        <ChartCanvas id="assetClassBar" height={Math.max(160, assetEntries.length * 36)} config={{
+          type: 'bar',
+          data: {
+            labels: assetEntries.map(([label]) => label),
+            datasets: [{
+              data: assetEntries.map(([, v]) => v),
+              backgroundColor: assetEntries.map((_, i) => palette[i % palette.length]),
+              borderRadius: 4, barPercentage: 0.65,
+            }]
+          },
+          options: {
+            ...chartDefaults, indexAxis: 'y',
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: v => fmt(v.raw) + ' (' + (v.raw / totalValue * 100).toFixed(0) + '%)' } } },
+            scales: {
+              x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, callback: v => fmtK(v) } },
+              y: { ...chartDefaults.scales.y, grid: { display: false } },
+            },
+          }
+        }} />
+      </Card>
+
+      <SectionTitle>Geographic exposure</SectionTitle>
+      <Card>
+        <ChartCanvas id="geoBar" height={Math.max(160, geoEntries.length * 36)} config={{
+          type: 'bar',
+          data: {
+            labels: geoEntries.map(([label]) => label),
+            datasets: [{
+              data: geoEntries.map(([, v]) => v),
+              backgroundColor: geoEntries.map((_, i) => palette[i % palette.length]),
+              borderRadius: 4, barPercentage: 0.65,
+            }]
+          },
+          options: {
+            ...chartDefaults, indexAxis: 'y',
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: v => fmt(v.raw) + ' (' + (v.raw / totalValue * 100).toFixed(0) + '%)' } } },
+            scales: {
+              x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, callback: v => fmtK(v) } },
+              y: { ...chartDefaults.scales.y, grid: { display: false } },
+            },
+          }
+        }} />
+        {geos['Unclassified'] > 0 && (
+          <div style={{ marginTop: 12, fontSize: 12, color: COLORS.textMuted }}>
+            Some holdings couldn't be auto-classified. Geography is inferred from fund names.
+          </div>
+        )}
+      </Card>
+
+      <SectionTitle>Concentration risk</SectionTitle>
+      <Card style={{ borderLeft: topPct > 50 ? '3px solid #E03E3E' : top3Pct > 80 ? '3px solid #D9730D' : '3px solid #0F7B6C' }}>
+        {topHolding && (
+          <DataRow
+            label="Largest holding"
+            sub={topHolding.name}
+            value={topPct.toFixed(0) + '%'}
+            color={topPct > 50 ? COLORS.red : topPct > 30 ? COLORS.coral : COLORS.text}
+            bold
+          />
+        )}
+        <DataRow
+          label="Top 3 holdings"
+          value={top3Pct.toFixed(0) + '%'}
+          color={top3Pct > 80 ? COLORS.red : top3Pct > 60 ? COLORS.coral : COLORS.text}
+        />
+        <DataRow
+          label="Diversification index (HHI)"
+          sub="Lower is more diversified"
+          value={hhi.toFixed(0) + '/100'}
+          color={hhi < 25 ? COLORS.green : hhi < 50 ? COLORS.coral : COLORS.red}
+        />
+        <div style={{ marginTop: 12, fontSize: 12, color: COLORS.textMuted, lineHeight: 1.5 }}>
+          {topPct > 50 && '⚠ Single holding exceeds 50% of portfolio. Consider diversifying to reduce single-asset risk.'}
+          {topPct <= 50 && top3Pct > 80 && 'Top 3 holdings dominate the portfolio. Reasonable for index fund investors but worth knowing.'}
+          {topPct <= 50 && top3Pct <= 80 && '✓ Portfolio is reasonably diversified across multiple holdings.'}
+        </div>
+      </Card>
     </>
   )
 }
@@ -292,13 +591,49 @@ function CashFlow({ finances }) {
   const avgIncome = income.length > 0 ? income.reduce((a, b) => a + b, 0) / income.length : 0
   const avgOutgoing = outgoing.length > 0 ? Math.abs(outgoing.reduce((a, b) => a + b, 0)) / outgoing.length : 0
   const netMonthly = avgIncome - avgOutgoing
+  const savingsRate = avgIncome > 0 ? (netMonthly / avgIncome) * 100 : 0
+
+  // Volatility: stdev of monthly outgoing as % of mean
+  const outgoingAbs = outgoing.map(o => Math.abs(o))
+  const meanOut = outgoingAbs.reduce((a, b) => a + b, 0) / Math.max(1, outgoingAbs.length)
+  const variance = outgoingAbs.reduce((s, x) => s + Math.pow(x - meanOut, 2), 0) / Math.max(1, outgoingAbs.length)
+  const stdev = Math.sqrt(variance)
+  const volatilityPct = meanOut > 0 ? (stdev / meanOut) * 100 : 0
+
+  // Highest spend month
+  const maxOutIdx = outgoingAbs.indexOf(Math.max(...outgoingAbs))
+  const maxMonthLabel = labels[maxOutIdx]
+  const maxMonthAmount = outgoingAbs[maxOutIdx]
+
+  // Categories, top merchants, subscriptions
+  const categories = categorizeSpending(allTx)
+  const totalSpend = categories.reduce((s, c) => s + c.total, 0)
+  const merchants = topMerchants(allTx, 8)
+  const subs = detectSubscriptions(allTx)
+  const totalSubs = subs.reduce((s, x) => s + x.monthly, 0)
+
+  const categoryColors = {
+    income: COLORS.green,
+    investment: COLORS.purple,
+    housing: COLORS.coral,
+    food: COLORS.blue,
+    subscriptions: COLORS.teal,
+    transport: '#D9730D',
+    other: COLORS.textDim,
+  }
+  const palette = [COLORS.blue, COLORS.coral, COLORS.teal, COLORS.purple, '#D9730D', COLORS.green, COLORS.textDim]
 
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <MetricCard label="Avg Monthly Income" value={fmt(avgIncome) + '/mo'} color={COLORS.green} />
         <MetricCard label="Avg Monthly Outgoing" value={fmt(avgOutgoing) + '/mo'} color={COLORS.red} />
-        <MetricCard label="Net Monthly" value={fmt(netMonthly) + '/mo'} color={netMonthly >= 0 ? COLORS.green : COLORS.red} />
+        <MetricCard
+          label="Savings Rate"
+          value={savingsRate.toFixed(0) + '%'}
+          sub={fmt(netMonthly) + '/mo net'}
+          color={savingsRate >= 20 ? COLORS.green : savingsRate >= 10 ? COLORS.coral : COLORS.red}
+        />
       </div>
 
       <SectionTitle>Monthly cash flow</SectionTitle>
@@ -322,6 +657,88 @@ function CashFlow({ finances }) {
           }
         }} />
         <Legend items={[['Income', COLORS.green], ['Outgoing', COLORS.red]]} />
+      </Card>
+
+      {categories.length > 0 && (
+        <>
+          <SectionTitle>Spending by category</SectionTitle>
+          <Card>
+            <ChartCanvas id="spendCats" height={Math.max(180, categories.length * 36)} config={{
+              type: 'bar',
+              data: {
+                labels: categories.map(c => c.category.charAt(0).toUpperCase() + c.category.slice(1)),
+                datasets: [{
+                  data: categories.map(c => c.total),
+                  backgroundColor: categories.map((c, i) => categoryColors[c.category] || palette[i % palette.length]),
+                  borderRadius: 4, barPercentage: 0.7,
+                }]
+              },
+              options: {
+                ...chartDefaults, indexAxis: 'y',
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: v => fmt(v.raw) + ' (' + (v.raw / totalSpend * 100).toFixed(0) + '%)' } } },
+                scales: {
+                  x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, callback: v => fmtK(v) } },
+                  y: { ...chartDefaults.scales.y, grid: { display: false } },
+                },
+              }
+            }} />
+          </Card>
+        </>
+      )}
+
+      {merchants.length > 0 && (
+        <>
+          <SectionTitle>Top expenses</SectionTitle>
+          <Card>
+            {merchants.map((m, i) => (
+              <DataRow
+                key={i}
+                label={m.description}
+                sub={m.count > 1 ? `${m.count} transactions` : null}
+                value={fmt(m.total)}
+              />
+            ))}
+          </Card>
+        </>
+      )}
+
+      {subs.length > 0 && (
+        <>
+          <SectionTitle>Recurring subscriptions</SectionTitle>
+          <Card>
+            <div style={{ marginBottom: 12, fontSize: 13, color: COLORS.textMuted }}>
+              Detected {subs.length} recurring payments totalling <strong style={{ color: COLORS.text }}>{fmt(totalSubs)}/mo</strong> ({fmt(totalSubs * 12)}/yr).
+            </div>
+            {subs.slice(0, 12).map((s, i) => (
+              <DataRow
+                key={i}
+                label={s.description}
+                sub={`${s.occurrences} months`}
+                value={fmt(s.monthly) + '/mo'}
+              />
+            ))}
+          </Card>
+        </>
+      )}
+
+      <SectionTitle>Spending volatility</SectionTitle>
+      <Card>
+        <DataRow label="Average monthly outgoing" value={fmt(meanOut)} />
+        <DataRow label="Standard deviation" value={fmt(stdev)} sub="Variability month-to-month" />
+        <DataRow
+          label="Volatility"
+          value={volatilityPct.toFixed(0) + '%'}
+          color={volatilityPct < 15 ? COLORS.green : volatilityPct < 30 ? COLORS.coral : COLORS.red}
+          bold
+        />
+        {maxMonthLabel && (
+          <DataRow label="Highest spend month" sub={maxMonthLabel} value={fmt(maxMonthAmount)} color={COLORS.red} />
+        )}
+        <div style={{ marginTop: 12, fontSize: 12, color: COLORS.textMuted, lineHeight: 1.5 }}>
+          {volatilityPct < 15 && '✓ Your spending is consistent month-to-month — easy to budget.'}
+          {volatilityPct >= 15 && volatilityPct < 30 && 'Moderate variability. Some months are noticeably higher than others.'}
+          {volatilityPct >= 30 && '⚠ Highly variable spending. Consider building a larger emergency buffer.'}
+        </div>
       </Card>
     </>
   )
@@ -470,6 +887,81 @@ function Goals({ finances, goals }) {
           : [['Projection', COLORS.blue], ['Target', COLORS.red]]
         } />
       </Card>
+
+      <SectionTitle>Sensitivity analysis</SectionTitle>
+      <Card>
+        <div style={{ marginBottom: 16, fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>
+          How much each lever moves your goal age (vs current baseline of {fmt(monthlySavings)}/mo at {returnRate}% return).
+        </div>
+        {(() => {
+          // Compute baseline reach age
+          function reachAt(rate, savings, lump = 0) {
+            let v = currentNW + lump
+            for (let i = 0; i < 60; i++) {
+              if (v >= target) return currentAge + i
+              v = v * (1 + rate / 100) + savings * 12
+            }
+            return null
+          }
+          const baseAge = reachAt(returnRate, monthlySavings, lumpSum)
+          const scenarios = [
+            { label: '+£500/mo savings', delta: reachAt(returnRate, monthlySavings + 500, lumpSum) },
+            { label: '+£1,000/mo savings', delta: reachAt(returnRate, monthlySavings + 1000, lumpSum) },
+            { label: '−£500/mo savings', delta: reachAt(returnRate, Math.max(0, monthlySavings - 500), lumpSum) },
+            { label: '+1% return', delta: reachAt(returnRate + 1, monthlySavings, lumpSum) },
+            { label: '−1% return', delta: reachAt(Math.max(2, returnRate - 1), monthlySavings, lumpSum) },
+            { label: '+£50k lump sum', delta: reachAt(returnRate, monthlySavings, lumpSum + 50000) },
+          ]
+          return scenarios.map((s, i) => {
+            const diff = s.delta && baseAge ? s.delta - baseAge : null
+            const diffStr = diff === null ? 'No reach' : diff === 0 ? 'No change' : diff < 0 ? `${diff} year${diff !== -1 ? 's' : ''} earlier` : `${diff} year${diff !== 1 ? 's' : ''} later`
+            const color = diff === null ? COLORS.textDim : diff < 0 ? COLORS.green : diff > 0 ? COLORS.red : COLORS.text
+            return <DataRow key={i} label={s.label} value={s.delta ? `Age ${s.delta}` : '—'} sub={diffStr} color={color} />
+          })
+        })()}
+      </Card>
+
+      <SectionTitle>Lost growth from cash drag</SectionTitle>
+      <Card>
+        {(() => {
+          const accounts = finances?.accounts || []
+          const cashAccounts = accounts.filter(a => ['current', 'savings'].includes(a.account_type))
+          const totalCash = cashAccounts.reduce((s, a) => s + (a.current_balance || 0), 0)
+          // Money market in GIA also counts as "cash drag" for analysis
+          const moneyMarketHoldings = accounts
+            .flatMap(a => (a.holdings || []))
+            .filter(h => classifyAsset(h.name) === 'Cash equivalent')
+            .reduce((s, h) => s + (h.value || 0), 0)
+          const cashDrag = totalCash + moneyMarketHoldings
+          // Excess above 6 months emergency fund
+          const monthlyOut = Math.abs((finances?.summary?.monthly_outgoing_avg) || 0)
+          const sixMonthBuffer = monthlyOut * 6 || 15000
+          const excess = Math.max(0, cashDrag - sixMonthBuffer)
+
+          // Cost of cash drag over 10 years: 7% return vs 4% cash
+          const equityValue10y = excess * Math.pow(1.07, 10)
+          const cashValue10y = excess * Math.pow(1.04, 10)
+          const lostGrowth = equityValue10y - cashValue10y
+
+          if (excess === 0) {
+            return <div style={{ fontSize: 13, color: COLORS.textMuted }}>You don't have meaningful excess cash sitting idle. Cash holdings look right-sized to your spending.</div>
+          }
+
+          return (
+            <>
+              <DataRow label="Total cash & money market" value={fmt(cashDrag)} />
+              <DataRow label="Recommended emergency buffer" sub="6 months of outgoings" value={fmt(sixMonthBuffer)} />
+              <DataRow label="Excess sitting in cash" value={fmt(excess)} color={COLORS.coral} bold />
+              <DataRow label="If invested at 7% (10 years)" value={fmt(equityValue10y)} color={COLORS.green} />
+              <DataRow label="If left in cash at 4% (10 years)" value={fmt(cashValue10y)} />
+              <DataRow label="Lost growth" value={fmt(lostGrowth)} color={COLORS.red} bold />
+              <div style={{ marginTop: 12, fontSize: 12, color: COLORS.textMuted, lineHeight: 1.5 }}>
+                Inflation erodes cash. Even at 4% interest, you lose buying power over time. The equity premium is the gap between cash and long-run market returns — historically ~3% per year.
+              </div>
+            </>
+          )
+        })()}
+      </Card>
     </>
   )
 }
@@ -514,6 +1006,16 @@ function TaxEfficiency({ finances }) {
   // ISA recommendation
   const isaAnnualLimit = 20000
   const yearsToShelter = wrappers.gia.total > 0 ? Math.ceil(wrappers.gia.total / isaAnnualLimit) : 0
+
+  // Dividend estimate: assume 1.5% average yield on GIA equity holdings (excluding money market)
+  const giaEquityValue = wrappers.gia.holdings
+    .filter(h => classifyAsset(h.name) === 'Equities')
+    .reduce((s, h) => s + (h.value || 0), 0)
+  const estimatedDividends = giaEquityValue * 0.015
+  const dividendAllowance = 500 // 2024/25
+  const taxableDividends = Math.max(0, estimatedDividends - dividendAllowance)
+  // Higher rate dividend tax 33.75%, basic 8.75% — assume basic for safety
+  const potentialDividendTax = taxableDividends * 0.0875
 
   // Findings
   const findings = []
@@ -616,6 +1118,22 @@ function TaxEfficiency({ finances }) {
                 <strong>Bed &amp; ISA strategy:</strong> At £{isaAnnualLimit.toLocaleString()}/year ISA contributions, it would take ~{yearsToShelter} year{yearsToShelter !== 1 ? 's' : ''} to fully shelter your GIA holdings. If you have a partner, double the speed by using their ISA too.
               </div>
             )}
+          </Card>
+        </>
+      )}
+
+      {giaEquityValue > 5000 && (
+        <>
+          <SectionTitle>Dividend tax estimate</SectionTitle>
+          <Card style={{ borderLeft: potentialDividendTax > 0 ? '3px solid #D9730D' : '3px solid #0F7B6C' }}>
+            <DataRow label="GIA equity holdings" value={fmt(giaEquityValue)} sub="Excluding money market" />
+            <DataRow label="Estimated annual dividends" value={fmt(estimatedDividends) + '/yr'} sub="Assuming ~1.5% yield" />
+            <DataRow label="Dividend allowance" value={fmt(dividendAllowance)} sub="2024/25" />
+            <DataRow label="Taxable dividends" value={fmt(taxableDividends)} color={taxableDividends > 0 ? COLORS.coral : COLORS.text} />
+            <DataRow label="Potential tax at 8.75%" value={fmt(potentialDividendTax)} color={potentialDividendTax > 0 ? COLORS.coral : COLORS.green} bold sub="Higher rate is 33.75%" />
+            <div style={{ marginTop: 12, fontSize: 12, color: COLORS.textMuted, lineHeight: 1.5 }}>
+              Estimate uses a generic 1.5% dividend yield on equity ETFs. Actual figures depend on the specific funds. Accumulating funds (e.g. VUAG) reinvest dividends but you still owe tax on the deemed distribution.
+            </div>
           </Card>
         </>
       )}
