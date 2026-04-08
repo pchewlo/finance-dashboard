@@ -44,10 +44,20 @@ export function GoalsForm({ initialGoals, onSubmit, onBack }) {
     monthly_savings: '',
     priorities: '',
     risk_tolerance: 'moderate',
+    owns_home: 'no',
+    property_value: '',
+    mortgage_balance: '',
+    mortgage_rate: '',
+    mortgage_years_left: '',
+    mortgage_fix_ends: '',
+    planning_to_move: 'no',
+    target_purchase_price: '',
     notes: '',
   })
 
   const update = (k, v) => setGoals(g => ({ ...g, [k]: v }))
+
+  const equity = (parseFloat(goals.property_value) || 0) - (parseFloat(goals.mortgage_balance) || 0)
 
   const inputStyle = {
     width: '100%',
@@ -70,6 +80,12 @@ export function GoalsForm({ initialGoals, onSubmit, onBack }) {
       target_age: parseInt(goals.target_age) || 0,
       target_net_worth: parseFloat(goals.target_net_worth) || 0,
       monthly_savings: parseFloat(goals.monthly_savings) || 0,
+      property_value: parseFloat(goals.property_value) || 0,
+      mortgage_balance: parseFloat(goals.mortgage_balance) || 0,
+      mortgage_rate: parseFloat(goals.mortgage_rate) || 0,
+      mortgage_years_left: parseInt(goals.mortgage_years_left) || 0,
+      target_purchase_price: parseFloat(goals.target_purchase_price) || 0,
+      property_equity: equity,
     })
   }
 
@@ -124,10 +140,83 @@ export function GoalsForm({ initialGoals, onSubmit, onBack }) {
             <option value="aggressive">Aggressive — maximize long-term growth</option>
           </select>
         </div>
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>Property</div>
+        <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16 }}>Property is often a major part of net worth. Tell us about your situation.</div>
+
+        <div>
+          <label style={labelStyle}>Do you own a home?</label>
+          <select style={inputStyle} value={goals.owns_home} onChange={e => update('owns_home', e.target.value)}>
+            <option value="no">No — renting or living with others</option>
+            <option value="yes_outright">Yes — owned outright (no mortgage)</option>
+            <option value="yes_mortgage">Yes — with a mortgage</option>
+          </select>
+        </div>
+
+        {(goals.owns_home === 'yes_mortgage' || goals.owns_home === 'yes_outright') && (
+          <>
+            <div style={{ marginTop: 16 }}>
+              <label style={labelStyle}>Estimated property value (£)</label>
+              <input style={inputStyle} type="number" placeholder="450000" value={goals.property_value} onChange={e => update('property_value', e.target.value)} />
+            </div>
+
+            {goals.owns_home === 'yes_mortgage' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Outstanding mortgage (£)</label>
+                    <input style={inputStyle} type="number" placeholder="250000" value={goals.mortgage_balance} onChange={e => update('mortgage_balance', e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Estimated equity (£)</label>
+                    <input style={{ ...inputStyle, background: COLORS.pageBg, color: COLORS.textMuted }} type="text" value={equity > 0 ? '£' + equity.toLocaleString('en-GB') : '£0'} disabled />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Current rate (%)</label>
+                    <input style={inputStyle} type="number" step="0.01" placeholder="4.5" value={goals.mortgage_rate} onChange={e => update('mortgage_rate', e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Years remaining</label>
+                    <input style={inputStyle} type="number" placeholder="25" value={goals.mortgage_years_left} onChange={e => update('mortgage_years_left', e.target.value)} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <label style={labelStyle}>Fixed-rate deal ends (optional)</label>
+                  <input style={inputStyle} type="text" placeholder="e.g. May 2027" value={goals.mortgage_fix_ends} onChange={e => update('mortgage_fix_ends', e.target.value)} />
+                </div>
+              </>
+            )}
+          </>
+        )}
 
         <div style={{ marginTop: 16 }}>
+          <label style={labelStyle}>Planning to move or buy?</label>
+          <select style={inputStyle} value={goals.planning_to_move} onChange={e => update('planning_to_move', e.target.value)}>
+            <option value="no">No</option>
+            <option value="next_year">Yes — within the next year</option>
+            <option value="next_3_years">Yes — within 3 years</option>
+            <option value="someday">Eventually</option>
+          </select>
+        </div>
+
+        {goals.planning_to_move !== 'no' && (
+          <div style={{ marginTop: 16 }}>
+            <label style={labelStyle}>Target purchase price (£)</label>
+            <input style={inputStyle} type="number" placeholder="600000" value={goals.target_purchase_price} onChange={e => update('target_purchase_price', e.target.value)} />
+          </div>
+        )}
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <div>
           <label style={labelStyle}>Anything else we should know? (optional)</label>
-          <textarea style={{ ...inputStyle, minHeight: 80, fontFamily: 'inherit' }} placeholder="e.g. expecting children, planning to relocate, have a mortgage ending in 2027..." value={goals.notes} onChange={e => update('notes', e.target.value)} />
+          <textarea style={{ ...inputStyle, minHeight: 80, fontFamily: 'inherit' }} placeholder="e.g. expecting children, planning to relocate, partner's income..." value={goals.notes} onChange={e => update('notes', e.target.value)} />
         </div>
       </Card>
 
@@ -147,17 +236,30 @@ export function CsvUpload({ onSubmit, onBack }) {
   const inputRef = useRef(null)
 
   function handleFiles(fileList) {
-    const newFiles = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv')
+    const newFiles = Array.from(fileList).filter(f => {
+      const name = f.name.toLowerCase()
+      return name.endsWith('.csv') || name.endsWith('.pdf') || f.type === 'text/csv' || f.type === 'application/pdf'
+    })
     if (newFiles.length === 0) {
-      setError('Please upload CSV files only')
+      setError('Please upload CSV or PDF files only')
       return
     }
     setError(null)
 
     Promise.all(newFiles.map(f => new Promise((resolve) => {
+      const isPdf = f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
       const reader = new FileReader()
-      reader.onload = () => resolve({ name: f.name, content: reader.result })
-      reader.readAsText(f)
+      if (isPdf) {
+        reader.onload = () => {
+          // strip data URL prefix to get raw base64
+          const base64 = String(reader.result).split(',')[1]
+          resolve({ name: f.name, type: 'pdf', content: base64 })
+        }
+        reader.readAsDataURL(f)
+      } else {
+        reader.onload = () => resolve({ name: f.name, type: 'csv', content: reader.result })
+        reader.readAsText(f)
+      }
     }))).then(loaded => {
       setFiles(prev => [...prev, ...loaded])
     })
@@ -169,7 +271,7 @@ export function CsvUpload({ onSubmit, onBack }) {
 
   async function handleParse() {
     if (files.length === 0) {
-      setError('Add at least one CSV file')
+      setError('Add at least one file')
       return
     }
     setParsing(true)
@@ -198,7 +300,7 @@ export function CsvUpload({ onSubmit, onBack }) {
       <div style={{ marginBottom: 32 }}>
         <Tag color="orange">Step 2 of 3</Tag>
         <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>Upload your statements</h1>
-        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>Drag in CSV exports from your bank, broker, or pension provider. We'll auto-detect the format.</p>
+        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>Drag in CSV or PDF exports from your bank, broker, or pension provider. We'll auto-detect the format.</p>
       </div>
 
       <div
@@ -217,16 +319,19 @@ export function CsvUpload({ onSubmit, onBack }) {
         }}
       >
         <div style={{ fontSize: 32, marginBottom: 12 }}>📁</div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>Drop CSV files here</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>Drop CSV or PDF files here</div>
         <div style={{ fontSize: 13, color: COLORS.textMuted }}>or click to browse</div>
-        <input ref={inputRef} type="file" multiple accept=".csv,text/csv" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
+        <input ref={inputRef} type="file" multiple accept=".csv,.pdf,text/csv,application/pdf" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
       </div>
 
       {files.length > 0 && (
         <div style={{ marginTop: 20 }}>
           {files.map((f, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#FFFFFF', border: `1px solid ${COLORS.cardBorder}`, borderRadius: 6, marginBottom: 8 }}>
-              <div style={{ fontSize: 14, color: COLORS.text }}>{f.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Tag color={f.type === 'pdf' ? 'red' : 'blue'}>{(f.type || 'csv').toUpperCase()}</Tag>
+                <div style={{ fontSize: 14, color: COLORS.text }}>{f.name}</div>
+              </div>
               <button onClick={() => removeFile(i)} style={{ background: 'none', border: 'none', color: COLORS.textMuted, cursor: 'pointer', fontSize: 13 }}>Remove</button>
             </div>
           ))}

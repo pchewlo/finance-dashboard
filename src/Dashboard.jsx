@@ -50,22 +50,33 @@ function Overview({ finances, goals }) {
     }
   })
 
+  // Add property equity from goals
+  const propertyEquity = goals?.property_equity || 0
+  if (propertyEquity > 0) {
+    composition.push({ label: 'Home equity', value: propertyEquity })
+  }
+
   const palette = [COLORS.blue, COLORS.coral, COLORS.teal, COLORS.green, COLORS.purple, '#D9730D', COLORS.textDim]
 
+  const netWorthWithProperty = (summary.net_worth || 0) + propertyEquity
   const targetNetWorth = goals?.target_net_worth || 0
-  const progressPct = targetNetWorth > 0 ? Math.min(100, (summary.net_worth / targetNetWorth) * 100) : 0
+  const progressPct = targetNetWorth > 0 ? Math.min(100, (netWorthWithProperty / targetNetWorth) * 100) : 0
 
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <MetricCard
           label="Net Worth"
-          value={fmt(summary.net_worth)}
+          value={fmt(netWorthWithProperty)}
           sub={targetNetWorth ? `${progressPct.toFixed(0)}% toward ${fmt(targetNetWorth)} goal` : 'Total assets minus liabilities'}
           color={COLORS.accent}
         />
         <MetricCard label="Investments" value={fmt(summary.total_investments)} sub="Liquid + retirement" />
-        <MetricCard label="Cash" value={fmt(summary.total_cash)} sub="Across all accounts" />
+        {propertyEquity > 0 ? (
+          <MetricCard label="Home Equity" value={fmt(propertyEquity)} sub={goals?.property_value ? `${fmt(goals.property_value)} value` : ''} />
+        ) : (
+          <MetricCard label="Cash" value={fmt(summary.total_cash)} sub="Across all accounts" />
+        )}
         <MetricCard
           label="Net Monthly"
           value={fmt((summary.monthly_income_avg || 0) + (summary.monthly_outgoing_avg || 0))}
