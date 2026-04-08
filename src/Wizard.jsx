@@ -419,16 +419,31 @@ export function Recommendations({ goals, finances, onBack }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   React.useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
       try {
+        // Slim down finances payload — drop individual transactions, keep summary + account meta + holdings
+        const slimFinances = finances ? {
+          summary: finances.summary,
+          accounts: (finances.accounts || []).map(acc => ({
+            source_file: acc.source_file,
+            detected_provider: acc.detected_provider,
+            account_type: acc.account_type,
+            currency: acc.currency,
+            current_balance: acc.current_balance,
+            holdings: acc.holdings,
+            transaction_count: (acc.transactions || []).length,
+          })),
+        } : null
+
         const res = await fetch('/api/recommend', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ goals, finances }),
+          body: JSON.stringify({ goals, finances: slimFinances }),
         })
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}))
@@ -437,14 +452,17 @@ export function Recommendations({ goals, finances, onBack }) {
         const result = await res.json()
         if (!cancelled) setData(result)
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Failed to generate recommendations')
+        if (!cancelled) {
+          const msg = err.message || 'Failed to generate recommendations'
+          setError(msg === 'Failed to fetch' ? 'The server took too long to respond. Please try again.' : msg)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     load()
     return () => { cancelled = true }
-  }, [])
+  }, [retryKey])
 
   if (loading) {
     return (
@@ -471,8 +489,9 @@ export function Recommendations({ goals, finances, onBack }) {
         <div style={{ padding: '14px 16px', background: 'rgba(224,62,62,0.06)', borderRadius: 6, borderLeft: '3px solid #E03E3E', fontSize: 13, color: COLORS.text }}>
           {error}
         </div>
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
           <Button onClick={onBack} variant="secondary">Back</Button>
+          <Button onClick={() => { setError(null); setData(null); setRetryKey(k => k + 1) }} variant="primary">Try again</Button>
         </div>
       </>
     )
