@@ -69,6 +69,10 @@ Return STRICTLY this JSON shape (no markdown, no commentary, just JSON):
       "holdings": [
         { "name": "...", "ticker": "...", "units": number, "cost": number, "value": number }
       ]
+      // For holdings: "value" is the CURRENT MARKET VALUE (must always be set if you find any monetary amount).
+      // "cost" is the original purchase/book cost — only set if explicitly given as a separate column.
+      // If the file has only one money column per holding, treat it as VALUE (not cost) and set cost to 0.
+      // NEVER set cost without also setting value.
     }
   ],
   "summary": {
@@ -108,6 +112,45 @@ Rules:
     }
 
     const parsed = JSON.parse(jsonMatch[0])
+
+    // Defensive fixup: if a holding has cost > 0 but value == 0, treat the cost as value
+    if (parsed.accounts) {
+      parsed.accounts.forEach(acc => {
+        if (acc.holdings) {
+          acc.holdings.forEach(h => {
+            if ((!h.value || h.value === 0) && h.cost > 0) {
+              h.value = h.cost
+              h.cost = 0
+            }
+          })
+        }
+      })
+
+      // Recompute summary if it looks broken
+      const totalHoldings = parsed.accounts.reduce((s, acc) =>
+        s + (acc.holdings || []).reduce((hs, h) => hs + (h.value || 0), 0), 0)
+      const totalCash = parsed.accounts
+        .filter(acc => ['current', 'savings'].includes(acc.account_type))
+        .reduce((s, acc) => s + (acc.current_balance || 0), 0)
+      const totalLiab = parsed.accounts
+        .filter(acc => acc.account_type === 'mortgage')
+        .reduce((s, acc) => s + Math.abs(acc.current_balance || 0), 0)
+
+      if (!parsed.summary) parsed.summary = {}
+      if (!parsed.summary.total_investments || parsed.summary.total_investments === 0) {
+        parsed.summary.total_investments = totalHoldings
+      }
+      if (!parsed.summary.total_cash || parsed.summary.total_cash === 0) {
+        parsed.summary.total_cash = totalCash
+      }
+      if (!parsed.summary.total_liabilities) {
+        parsed.summary.total_liabilities = totalLiab
+      }
+      if (!parsed.summary.net_worth || parsed.summary.net_worth === 0) {
+        parsed.summary.net_worth = (parsed.summary.total_cash || 0) + (parsed.summary.total_investments || 0) - (parsed.summary.total_liabilities || 0)
+      }
+    }
+
     return res.status(200).json(parsed)
   } catch (err) {
     console.error('Parse error:', err)

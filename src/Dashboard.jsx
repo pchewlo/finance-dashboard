@@ -1,7 +1,42 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { COLORS, MetricCard, SectionTitle, Card, DataRow, ChartCanvas, Legend, chartDefaults, fmt, fmtK, fmtM } from './ui.jsx'
 
-export default function Dashboard({ finances, goals }) {
+// Normalize finances: fix the parser bug where holding cost was set but value was 0
+function normalizeFinances(finances) {
+  if (!finances) return finances
+  const accounts = (finances.accounts || []).map(acc => {
+    const holdings = (acc.holdings || []).map(h => {
+      // If value is 0 or missing but cost is set, the parser put the value in the wrong column
+      if ((!h.value || h.value === 0) && h.cost > 0) {
+        return { ...h, value: h.cost, cost: 0 }
+      }
+      return h
+    })
+    return { ...acc, holdings }
+  })
+
+  const totalHoldings = accounts.reduce((s, acc) =>
+    s + (acc.holdings || []).reduce((hs, h) => hs + (h.value || 0), 0), 0)
+  const totalCash = accounts
+    .filter(acc => ['current', 'savings'].includes(acc.account_type))
+    .reduce((s, acc) => s + (acc.current_balance || 0), 0)
+  const totalLiab = accounts
+    .filter(acc => acc.account_type === 'mortgage')
+    .reduce((s, acc) => s + Math.abs(acc.current_balance || 0), 0)
+
+  const summary = { ...(finances.summary || {}) }
+  if (!summary.total_investments || summary.total_investments === 0) summary.total_investments = totalHoldings
+  if (!summary.total_cash || summary.total_cash === 0) summary.total_cash = totalCash
+  if (!summary.total_liabilities) summary.total_liabilities = totalLiab
+  if (!summary.net_worth || summary.net_worth === 0) {
+    summary.net_worth = (summary.total_cash || 0) + (summary.total_investments || 0) - (summary.total_liabilities || 0)
+  }
+
+  return { ...finances, accounts, summary }
+}
+
+export default function Dashboard({ finances: rawFinances, goals }) {
+  const finances = useMemo(() => normalizeFinances(rawFinances), [rawFinances])
   const [activeTab, setActiveTab] = useState('overview')
 
   const tabs = [
@@ -136,6 +171,7 @@ function Portfolio({ finances }) {
 
   const totalValue = allHoldings.reduce((s, h) => s + (h.value || 0), 0)
   const totalCost = allHoldings.reduce((s, h) => s + (h.cost || 0), 0)
+  const hasCostData = totalCost > 0
   const totalChange = totalValue - totalCost
 
   if (allHoldings.length === 0) {
@@ -146,22 +182,29 @@ function Portfolio({ finances }) {
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <MetricCard label="Portfolio Value" value={fmt(totalValue)} />
-        <MetricCard label="Total Cost" value={fmt(totalCost)} sub="Capital deployed" />
-        <MetricCard
-          label="Total Return"
-          value={(totalChange >= 0 ? '+' : '-') + fmt(totalChange)}
-          sub={totalCost > 0 ? `${(totalChange / totalCost * 100).toFixed(1)}%` : ''}
-          color={totalChange >= 0 ? COLORS.green : COLORS.red}
-        />
+        {hasCostData ? (
+          <>
+            <MetricCard label="Total Cost" value={fmt(totalCost)} sub="Capital deployed" />
+            <MetricCard
+              label="Total Return"
+              value={(totalChange >= 0 ? '+' : '-') + fmt(totalChange)}
+              sub={`${(totalChange / totalCost * 100).toFixed(1)}%`}
+              color={totalChange >= 0 ? COLORS.green : COLORS.red}
+            />
+          </>
+        ) : (
+          <MetricCard label="Holdings" value={String(allHoldings.length)} sub="Funds in portfolio" />
+        )}
       </div>
 
       <SectionTitle>Holdings</SectionTitle>
       <Card>
         {allHoldings.map((h, i) => {
+          const showCost = (h.cost || 0) > 0
           const change = (h.value || 0) - (h.cost || 0)
           return (
             <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', alignItems: 'center',
+              display: 'grid', gridTemplateColumns: hasCostData ? '2fr 1fr 1fr 1fr' : '3fr 1fr', alignItems: 'center',
               padding: '14px 0',
               borderBottom: i < allHoldings.length - 1 ? `1px solid ${COLORS.cardBorder}` : 'none',
               fontSize: 13,
@@ -171,11 +214,17 @@ function Portfolio({ finances }) {
                 <div style={{ fontWeight: 500 }}>{h.name || h.ticker || 'Unknown'}</div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted }}>{h.account}</div>
               </div>
-              <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(h.cost)}</div>
-              <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(h.value)}</div>
-              <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: change >= 0 ? COLORS.green : COLORS.red }}>
-                {change >= 0 ? '+' : '-'}{fmt(change)}
-              </div>
+              {hasCostData && (
+                <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: showCost ? COLORS.text : COLORS.textDim }}>
+                  {showCost ? fmt(h.cost) : '—'}
+                </div>
+              )}
+              <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmt(h.value)}</div>
+              {hasCostData && (
+                <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: showCost ? (change >= 0 ? COLORS.green : COLORS.red) : COLORS.textDim }}>
+                  {showCost ? `${change >= 0 ? '+' : '-'}${fmt(change)}` : '—'}
+                </div>
+              )}
             </div>
           )
         })}
