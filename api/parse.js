@@ -2,7 +2,9 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export const config = {
   api: {
-    bodyParser: { sizeLimit: '10mb' },
+    // Files are extracted to text in the browser before upload, so payloads
+    // are usually <500KB even for very large source PDFs/Excel files.
+    bodyParser: { sizeLimit: '5mb' },
   },
   // maxDuration only applies on Vercel Pro+ (Hobby caps at 60s).
   maxDuration: 60,
@@ -26,32 +28,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No files provided' })
     }
 
-    // Build a mixed content array: text intro + each file as either text or document block
-    const content = [
-      {
-        type: 'text',
-        text: 'Parse the following financial files. Each is labeled with its filename. Return only the JSON described in the system prompt.',
-      },
-    ]
+    // All files now arrive as text (PDFs extracted client-side via pdfjs,
+    // Excel converted via SheetJS, CSV as-is). Send as a single text block.
+    const fileBlocks = files.map((f, i) => {
+      const label = f.type === 'pdf' ? 'PDF (extracted text)' : f.type === 'excel' ? 'Excel (converted to CSV)' : 'CSV'
+      return `\n--- FILE ${i + 1}: ${f.name} (${label}) ---\n${String(f.content || '').slice(0, 80000)}`
+    }).join('\n')
 
-    files.forEach((f, i) => {
-      const isPdf = f.type === 'pdf'
-      const label = isPdf ? 'PDF' : f.type === 'excel' ? 'Excel (converted to CSV)' : 'CSV'
-      content.push({ type: 'text', text: `\n--- FILE ${i + 1}: ${f.name} (${label}) ---` })
-      if (isPdf) {
-        content.push({
-          type: 'document',
-          source: {
-            type: 'base64',
-            media_type: 'application/pdf',
-            data: f.content,
-          },
-        })
-      } else {
-        // CSV/Excel: send as plain text, truncate huge files
-        content.push({ type: 'text', text: String(f.content).slice(0, 30000) })
-      }
-    })
+    const content = [{
+      type: 'text',
+      text: `Parse the following financial files. Each is labeled with its filename and type. Return only the JSON described in the system prompt.\n${fileBlocks}`,
+    }]
 
     const systemPrompt = `You are a financial data parser. The user will upload one or more files (CSV or PDF) exported from banks, brokers, pension providers, mortgage statements, or other financial institutions. Your job is to auto-detect each format and extract the data into a normalized JSON structure.
 

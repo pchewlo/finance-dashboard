@@ -1,6 +1,22 @@
 import React, { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
+import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs'
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { COLORS, Card, Button, Tag, LoadingState, useIsMobile, fmt } from './ui.jsx'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
+
+async function extractPdfText(arrayBuffer) {
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const pages = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    const text = content.items.map(item => item.str).join(' ')
+    pages.push(`--- Page ${i} ---\n${text}`)
+  }
+  return pages.join('\n\n')
+}
 
 export function Welcome({ onStart }) {
   const isMobile = useIsMobile()
@@ -247,11 +263,15 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls')
       const reader = new FileReader()
       if (isPdf) {
-        reader.onload = () => {
-          const base64 = String(reader.result).split(',')[1]
-          resolve({ name: f.name, type: 'pdf', content: base64 })
+        reader.onload = async () => {
+          try {
+            const text = await extractPdfText(reader.result)
+            resolve({ name: f.name, type: 'pdf', content: text })
+          } catch (err) {
+            resolve({ name: f.name, type: 'pdf', content: '', error: 'Could not extract text from PDF' })
+          }
         }
-        reader.readAsDataURL(f)
+        reader.readAsArrayBuffer(f)
       } else if (isExcel) {
         reader.onload = () => {
           try {
@@ -287,16 +307,16 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       return
     }
 
-    // Truncate large text content client-side (PDFs are base64 and stay full size)
-    const trimmedFiles = files.map(f => {
-      if (f.type === 'pdf') return f
-      return { ...f, content: String(f.content || '').slice(0, 60000) }
-    })
+    // Truncate text content per file. PDFs are now extracted text too, not base64.
+    const trimmedFiles = files.map(f => ({
+      ...f,
+      content: String(f.content || '').slice(0, 80000),
+    }))
 
     const payload = JSON.stringify({ files: trimmedFiles })
-    // 9MB cap (Vercel bodyParser is 10MB, leave headroom for JSON overhead)
-    if (payload.length > 9_000_000) {
-      setError('Files are too large combined (max ~10MB). Try uploading fewer files or smaller statements.')
+    // Sanity cap — should never trigger now that PDFs are text-only
+    if (payload.length > 4_000_000) {
+      setError('Combined extracted text is over 4MB. Try splitting your files into smaller batches.')
       return
     }
 
@@ -360,7 +380,7 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       <div style={{ marginBottom: 32 }}>
         <Tag color="orange">{isEditing ? 'Updating files' : 'Step 2 of 3'}</Tag>
         <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>{isEditing ? 'Upload fresh statements' : 'Upload your statements'}</h1>
-        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>{isEditing ? 'New files will replace your existing data. Your goals will be kept.' : 'Drag in CSV, Excel, or PDF exports from your bank, broker, or pension provider. We\'ll auto-detect the format.'}</p>
+        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>{isEditing ? 'New files will replace your existing data. Your goals will be kept.' : 'Drag in CSV, Excel, or PDF exports from your bank, broker, or pension provider. We extract data in your browser — large files are fine.'}</p>
       </div>
 
       <div
