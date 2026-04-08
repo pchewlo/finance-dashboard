@@ -32,6 +32,16 @@ export const DemoContext = createContext(false)
 export const useDemo = () => useContext(DemoContext)
 export const blurStyle = { filter: 'blur(7px)', userSelect: 'none', pointerEvents: 'none' }
 
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 720 : false)
+  useEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth < 720) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return isMobile
+}
+
 export const fmt = (v) => {
   if (v == null || isNaN(v)) return '£0'
   return '£' + Math.abs(v).toLocaleString('en-GB', { maximumFractionDigits: 0 })
@@ -112,12 +122,13 @@ export function DataRow({ label, value, sub, color, bold }) {
 }
 
 export function Card({ children, style }) {
+  const isMobile = useIsMobile()
   return (
     <div style={{
       background: COLORS.card,
       border: `1px solid ${COLORS.cardBorder}`,
       borderRadius: 8,
-      padding: '24px 28px',
+      padding: isMobile ? '18px 20px' : '24px 28px',
       boxShadow: 'rgba(15,15,15,0.04) 0px 1px 3px',
       ...style,
     }}>

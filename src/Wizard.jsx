@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { COLORS, Card, Button, Tag, LoadingState, fmt } from './ui.jsx'
+import { COLORS, Card, Button, Tag, LoadingState, useIsMobile, fmt } from './ui.jsx'
 
 export function Welcome({ onStart }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ textAlign: 'center', padding: '80px 0' }}>
+    <div style={{ textAlign: 'center', padding: isMobile ? '40px 0' : '80px 0' }}>
       <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>Personal Finance Audit</div>
-      <h1 style={{ fontFamily: 'inherit', fontSize: 44, fontWeight: 700, margin: 0, lineHeight: 1.15, color: COLORS.text, letterSpacing: '-0.02em' }}>
+      <h1 style={{ fontFamily: 'inherit', fontSize: isMobile ? 32 : 44, fontWeight: 700, margin: 0, lineHeight: 1.15, color: COLORS.text, letterSpacing: '-0.02em' }}>
         Understand your money.<br />Get a plan.
       </h1>
       <p style={{ fontSize: 16, color: COLORS.textMuted, marginTop: 16, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
@@ -37,7 +38,8 @@ export function Welcome({ onStart }) {
   )
 }
 
-export function GoalsForm({ initialGoals, onSubmit, onBack }) {
+export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
+  const isMobile = useIsMobile()
   const [goals, setGoals] = useState(initialGoals || {
     current_age: '',
     target_age: '',
@@ -93,13 +95,13 @@ export function GoalsForm({ initialGoals, onSubmit, onBack }) {
   return (
     <div style={{ maxWidth: 640, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
-        <Tag color="blue">Step 1 of 3</Tag>
-        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>What are you working toward?</h1>
-        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>Tell us your goals so we can tailor recommendations.</p>
+        <Tag color="blue">{isEditing ? 'Editing goals' : 'Step 1 of 3'}</Tag>
+        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>{isEditing ? 'Update your goals' : 'What are you working toward?'}</h1>
+        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>{isEditing ? 'Changes will refresh your dashboard and recommendations.' : 'Tell us your goals so we can tailor recommendations.'}</p>
       </div>
 
       <Card>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
           <div>
             <label style={labelStyle}>Current age</label>
             <input style={inputStyle} type="number" placeholder="30" value={goals.current_age} onChange={e => update('current_age', e.target.value)} />
@@ -165,7 +167,7 @@ export function GoalsForm({ initialGoals, onSubmit, onBack }) {
 
             {goals.owns_home === 'yes_mortgage' && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginTop: 16 }}>
                   <div>
                     <label style={labelStyle}>Outstanding mortgage (£)</label>
                     <input style={inputStyle} type="number" placeholder="250000" value={goals.mortgage_balance} onChange={e => update('mortgage_balance', e.target.value)} />
@@ -176,7 +178,7 @@ export function GoalsForm({ initialGoals, onSubmit, onBack }) {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginTop: 16 }}>
                   <div>
                     <label style={labelStyle}>Current rate (%)</label>
                     <input style={inputStyle} type="number" step="0.01" placeholder="4.5" value={goals.mortgage_rate} onChange={e => update('mortgage_rate', e.target.value)} />
@@ -222,14 +224,14 @@ export function GoalsForm({ initialGoals, onSubmit, onBack }) {
       </Card>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-        <Button onClick={onBack} variant="secondary">Back</Button>
-        <Button onClick={handleSubmit} variant="primary">Continue</Button>
+        <Button onClick={onBack} variant="secondary">{isEditing ? 'Cancel' : 'Back'}</Button>
+        <Button onClick={handleSubmit} variant="primary">{isEditing ? 'Save changes' : 'Continue'}</Button>
       </div>
     </div>
   )
 }
 
-export function CsvUpload({ onSubmit, onBack }) {
+export function CsvUpload({ onSubmit, onBack, isEditing }) {
   const [files, setFiles] = useState([])
   const [parsing, setParsing] = useState(false)
   const [error, setError] = useState(null)
@@ -339,7 +341,7 @@ export function CsvUpload({ onSubmit, onBack }) {
     return (
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         <div style={{ marginBottom: 32 }}>
-          <Tag color="orange">Step 2 of 3</Tag>
+          <Tag color="orange">{isEditing ? 'Updating files' : 'Step 2 of 3'}</Tag>
           <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>Reading your files</h1>
           <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>This usually takes 15-30 seconds.</p>
         </div>
@@ -363,9 +365,9 @@ export function CsvUpload({ onSubmit, onBack }) {
   return (
     <div style={{ maxWidth: 640, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
-        <Tag color="orange">Step 2 of 3</Tag>
-        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>Upload your statements</h1>
-        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>Drag in CSV, Excel, or PDF exports from your bank, broker, or pension provider. We'll auto-detect the format.</p>
+        <Tag color="orange">{isEditing ? 'Updating files' : 'Step 2 of 3'}</Tag>
+        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>{isEditing ? 'Upload fresh statements' : 'Upload your statements'}</h1>
+        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>{isEditing ? 'New files will replace your existing data. Your goals will be kept.' : 'Drag in CSV, Excel, or PDF exports from your bank, broker, or pension provider. We\'ll auto-detect the format.'}</p>
       </div>
 
       <div
@@ -410,9 +412,9 @@ export function CsvUpload({ onSubmit, onBack }) {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-        <Button onClick={onBack} variant="secondary" disabled={parsing}>Back</Button>
+        <Button onClick={onBack} variant="secondary" disabled={parsing}>{isEditing ? 'Cancel' : 'Back'}</Button>
         <Button onClick={handleParse} variant="primary" disabled={parsing || files.length === 0}>
-          {parsing ? 'Analyzing...' : 'Analyze my data'}
+          {parsing ? 'Analyzing...' : (isEditing ? 'Update my data' : 'Analyze my data')}
         </Button>
       </div>
     </div>

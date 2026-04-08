@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { COLORS, MetricCard, SectionTitle, Card, DataRow, ChartCanvas, Legend, chartDefaults, fmt, fmtK, fmtM } from './ui.jsx'
+import { COLORS, MetricCard, SectionTitle, Card, DataRow, ChartCanvas, Legend, chartDefaults, useIsMobile, fmt, fmtK, fmtM } from './ui.jsx'
 
 // Normalize finances: fix the parser bug where holding cost was set but value was 0
 function normalizeFinances(finances) {
@@ -38,6 +38,7 @@ function normalizeFinances(finances) {
 export default function Dashboard({ finances: rawFinances, goals }) {
   const finances = useMemo(() => normalizeFinances(rawFinances), [rawFinances])
   const [activeTab, setActiveTab] = useState('overview')
+  const isMobile = useIsMobile()
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -48,7 +49,7 @@ export default function Dashboard({ finances: rawFinances, goals }) {
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 0, marginTop: 8, marginBottom: 32, borderBottom: `1px solid ${COLORS.cardBorder}` }}>
+      <div style={{ display: 'flex', gap: 0, marginTop: 8, marginBottom: 32, borderBottom: `1px solid ${COLORS.cardBorder}`, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
@@ -60,6 +61,8 @@ export default function Dashboard({ finances: rawFinances, goals }) {
             borderBottom: activeTab === t.id ? `2px solid ${COLORS.text}` : '2px solid transparent',
             marginBottom: -1,
             transition: 'color 0.15s',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}>{t.label}</button>
         ))}
       </div>
@@ -164,6 +167,7 @@ function Overview({ finances, goals }) {
 }
 
 function Portfolio({ finances }) {
+  const isMobile = useIsMobile()
   const accounts = finances?.accounts || []
   const allHoldings = accounts.flatMap(acc =>
     (acc.holdings || []).map(h => ({ ...h, account: `${acc.detected_provider || ''} ${acc.account_type}`.trim() }))
@@ -198,10 +202,34 @@ function Portfolio({ finances }) {
       </div>
 
       <SectionTitle>Holdings</SectionTitle>
-      <Card>
+      <Card style={{ padding: isMobile ? '16px 18px' : '24px 28px' }}>
         {allHoldings.map((h, i) => {
           const showCost = (h.cost || 0) > 0
           const change = (h.value || 0) - (h.cost || 0)
+
+          if (isMobile) {
+            return (
+              <div key={i} style={{
+                padding: '14px 0',
+                borderBottom: i < allHoldings.length - 1 ? `1px solid ${COLORS.cardBorder}` : 'none',
+                fontSize: 13,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
+                  <div style={{ fontWeight: 500, flex: 1, minWidth: 0 }}>{h.name || h.ticker || 'Unknown'}</div>
+                  <div style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmt(h.value)}</div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+                  <div style={{ fontSize: 11, color: COLORS.textMuted }}>{h.account}</div>
+                  {hasCostData && showCost && (
+                    <div style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: change >= 0 ? COLORS.green : COLORS.red }}>
+                      {change >= 0 ? '+' : '-'}{fmt(change)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div key={i} style={{
               display: 'grid', gridTemplateColumns: hasCostData ? '2fr 1fr 1fr 1fr' : '3fr 1fr', alignItems: 'center',

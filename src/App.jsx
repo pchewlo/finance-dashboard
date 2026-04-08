@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { COLORS, FONT, DemoContext, Button } from './ui.jsx'
+import { COLORS, FONT, DemoContext, Button, useIsMobile } from './ui.jsx'
 import Dashboard from './Dashboard.jsx'
 import { Welcome, GoalsForm, CsvUpload, Recommendations } from './Wizard.jsx'
 
@@ -28,6 +28,7 @@ export default function App() {
   const [finances, setFinances] = useState(saved?.finances || null)
   const [demo, setDemo] = useState(false)
   const [dashTab, setDashTab] = useState('dashboard')
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     saveState({ step, goals, finances })
@@ -42,7 +43,10 @@ export default function App() {
     setDashTab('dashboard')
   }
 
+  // If user has completed onboarding (has finances), edits return to dashboard.
+  const hasCompleted = !!finances
   const isApp = step === 'dashboard'
+  const isEditing = hasCompleted && (step === 'goals' || step === 'upload')
 
   return (
     <DemoContext.Provider value={demo}>
@@ -52,36 +56,22 @@ export default function App() {
         fontFamily: FONT,
         color: COLORS.text,
       }}>
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '40px 24px 80px' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: isMobile ? '24px 16px 60px' : '40px 24px 80px' }}>
           {/* Top bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isApp ? 24 : 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isApp ? 24 : 16, flexWrap: 'wrap', gap: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, letterSpacing: '-0.01em' }}>Finance Audit</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {isApp && (
-                <button onClick={() => setDemo(d => !d)} style={{
-                  background: demo ? COLORS.text : COLORS.card,
-                  color: demo ? '#FFFFFF' : COLORS.textMuted,
-                  border: `1px solid ${COLORS.cardBorder}`,
-                  borderRadius: 6,
-                  padding: '6px 14px',
-                  fontSize: 13,
-                  fontFamily: 'inherit',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}>{demo ? 'Show numbers' : 'Hide numbers'}</button>
+                <>
+                  <button onClick={() => setStep('goals')} style={topBtnStyle(false)}>Edit goals</button>
+                  <button onClick={() => setStep('upload')} style={topBtnStyle(false)}>Update files</button>
+                  <button onClick={() => setDemo(d => !d)} style={topBtnStyle(demo)}>
+                    {demo ? 'Show numbers' : 'Hide numbers'}
+                  </button>
+                </>
               )}
               {(goals || finances) && (
-                <button onClick={reset} style={{
-                  background: 'none',
-                  color: COLORS.textMuted,
-                  border: `1px solid ${COLORS.cardBorder}`,
-                  borderRadius: 6,
-                  padding: '6px 14px',
-                  fontSize: 13,
-                  fontFamily: 'inherit',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}>Reset</button>
+                <button onClick={reset} style={topBtnStyle(false)}>Reset</button>
               )}
             </div>
           </div>
@@ -91,22 +81,30 @@ export default function App() {
           {step === 'goals' && (
             <GoalsForm
               initialGoals={goals}
-              onSubmit={(g) => { setGoals(g); setStep('upload') }}
-              onBack={() => setStep('welcome')}
+              isEditing={isEditing}
+              onSubmit={(g) => {
+                setGoals(g)
+                setStep(hasCompleted ? 'dashboard' : 'upload')
+              }}
+              onBack={() => setStep(hasCompleted ? 'dashboard' : 'welcome')}
             />
           )}
 
           {step === 'upload' && (
             <CsvUpload
-              onSubmit={(data) => { setFinances(data); setStep('dashboard') }}
-              onBack={() => setStep('goals')}
+              isEditing={isEditing}
+              onSubmit={(data) => {
+                setFinances(data)
+                setStep('dashboard')
+              }}
+              onBack={() => setStep(hasCompleted ? 'dashboard' : 'goals')}
             />
           )}
 
           {step === 'dashboard' && (
             <>
               <div style={{ marginBottom: 8 }}>
-                <h1 style={{ fontFamily: 'inherit', fontSize: 32, fontWeight: 700, margin: 0, lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.02em' }}>
+                <h1 style={{ fontFamily: 'inherit', fontSize: isMobile ? 24 : 32, fontWeight: 700, margin: 0, lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.02em' }}>
                   Your financial position
                 </h1>
                 <p style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>Based on the data you uploaded</p>
@@ -137,4 +135,19 @@ export default function App() {
       </div>
     </DemoContext.Provider>
   )
+}
+
+function topBtnStyle(active) {
+  return {
+    background: active ? COLORS.text : COLORS.card,
+    color: active ? '#FFFFFF' : COLORS.textMuted,
+    border: `1px solid ${COLORS.cardBorder}`,
+    borderRadius: 6,
+    padding: '6px 14px',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  }
 }
