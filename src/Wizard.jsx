@@ -329,8 +329,9 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
         return res.json()
       }))
 
-      // Merge per-file results into the shape the dashboard expects
-      const accounts = results.map(r => r.account).filter(Boolean)
+      // Merge per-file results into the shape the dashboard expects.
+      // Each result is { accounts: [...] } — flatten across files.
+      const accounts = results.flatMap(r => r.accounts || (r.account ? [r.account] : []))
 
       // Compute summary client-side from merged accounts
       const totalHoldings = accounts.reduce((s, a) =>

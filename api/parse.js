@@ -12,29 +12,43 @@ export const config = {
 // with cache_control. Keep it stable to maximize cache hits.
 const SYSTEM_PROMPT = `You parse one financial file (CSV, Excel-as-CSV, or PDF text) into JSON.
 
+A single file may contain MULTIPLE accounts. For example, a Vanguard export
+often contains an ISA, a GIA, and a Pension all in the same file. Detect each
+distinct account (different account_type or different wrapper) and return one
+entry per account in the accounts array.
+
 Output STRICTLY this JSON shape with no markdown or commentary:
 {
-  "account": {
-    "source_file": "filename",
-    "detected_provider": "Monzo|Vanguard|Trading 212|Hargreaves Lansdown|Santander|Unknown",
-    "account_type": "current|savings|isa|gia|pension|crypto|mortgage|other",
-    "currency": "GBP|USD|EUR",
-    "current_balance": number,
-    "transactions": [{ "date": "YYYY-MM-DD", "description": "string", "amount": number, "category": "income|investment|housing|food|subscriptions|transport|other" }],
-    "holdings": [{ "name": "string", "ticker": "string", "units": number, "cost": number, "value": number }]
-  }
+  "accounts": [
+    {
+      "source_file": "filename",
+      "detected_provider": "Monzo|Vanguard|Trading 212|Hargreaves Lansdown|Santander|Unknown",
+      "account_type": "current|savings|isa|gia|pension|crypto|mortgage|other",
+      "currency": "GBP|USD|EUR",
+      "current_balance": number,
+      "transactions": [{ "date": "YYYY-MM-DD", "description": "string", "amount": number, "category": "income|investment|housing|food|subscriptions|transport|other" }],
+      "holdings": [{ "name": "string", "ticker": "string", "units": number, "cost": number, "value": number }]
+    }
+  ]
 }
 
 CRITICAL: Output token budget is limited. You MUST follow these rules to avoid truncation:
-- Return at most 60 transactions. If the file has more, return ONLY the most recent 60.
+- Return at most 60 transactions PER ACCOUNT. If more, return only the most recent 60.
 - Keep "description" under 40 characters — abbreviate aggressively
 - Round amounts to whole numbers
-- Return at most 30 holdings
+- Return at most 30 holdings per account
+
+Account splitting rules:
+- ISA holdings → one account with account_type "isa"
+- GIA / general investment / taxable holdings → one account with account_type "gia"
+- Pension / SIPP holdings → one account with account_type "pension"
+- Current/savings bank accounts → "current" or "savings"
+- Mortgage statements → account_type "mortgage", current_balance = outstanding (negative)
+- If a file shows multiple wrappers, split them into separate account entries
 
 Other rules:
 - Transaction file: populate "transactions", leave "holdings" empty
 - Holdings/portfolio file: populate "holdings", leave "transactions" empty
-- Mortgage statement: account_type "mortgage", current_balance = outstanding (negative)
 - Numbers only — strip £/$/€ and commas
 - Negative = outgoing, positive = income
 - For holdings: "value" is current market value. Only set "cost" if explicitly given as a separate column. If only one money column exists, treat it as VALUE.
@@ -97,12 +111,22 @@ export default async function handler(req, res) {
       }
     }
 
+    // Backward compatibility: some responses may use the old single "account" key
+    if (parsed.account && !parsed.accounts) {
+      parsed.accounts = [parsed.account]
+      delete parsed.account
+    }
+
     // Defensive fixup: if a holding has cost > 0 but value == 0, swap them
-    if (parsed.account?.holdings) {
-      parsed.account.holdings.forEach(h => {
-        if ((!h.value || h.value === 0) && h.cost > 0) {
-          h.value = h.cost
-          h.cost = 0
+    if (parsed.accounts) {
+      parsed.accounts.forEach(acc => {
+        if (acc.holdings) {
+          acc.holdings.forEach(h => {
+            if ((!h.value || h.value === 0) && h.cost > 0) {
+              h.value = h.cost
+              h.cost = 0
+            }
+          })
         }
       })
     }
