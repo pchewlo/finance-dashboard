@@ -2,8 +2,9 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export const config = {
   api: {
-    bodyParser: { sizeLimit: '25mb' },
+    bodyParser: { sizeLimit: '4mb' },
   },
+  maxDuration: 60,
 }
 
 export default async function handler(req, res) {
@@ -46,8 +47,8 @@ export default async function handler(req, res) {
           },
         })
       } else {
-        // CSV: send as plain text, truncate huge files
-        content.push({ type: 'text', text: String(f.content).slice(0, 40000) })
+        // CSV/Excel: send as plain text, truncate huge files
+        content.push({ type: 'text', text: String(f.content).slice(0, 30000) })
       }
     })
 
@@ -94,7 +95,7 @@ Rules:
 - Limit transactions to last 12 months per account if there are many`
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-6',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8000,
       system: systemPrompt,
       messages: [{ role: 'user', content }],

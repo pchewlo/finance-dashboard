@@ -292,13 +292,26 @@ export function CsvUpload({ onSubmit, onBack }) {
       setError('Add at least one file')
       return
     }
+
+    // Truncate large content client-side and warn
+    const trimmedFiles = files.map(f => {
+      if (f.type === 'pdf') return f
+      return { ...f, content: String(f.content || '').slice(0, 30000) }
+    })
+
+    const payload = JSON.stringify({ files: trimmedFiles })
+    if (payload.length > 3_500_000) {
+      setError('Files are too large combined. Try uploading fewer files or smaller statements.')
+      return
+    }
+
     setParsing(true)
     setError(null)
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files }),
+        body: payload,
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
@@ -307,7 +320,12 @@ export function CsvUpload({ onSubmit, onBack }) {
       const data = await res.json()
       onSubmit(data)
     } catch (err) {
-      setError(err.message || 'Failed to parse files')
+      const msg = err.message || 'Failed to parse files'
+      if (msg === 'Failed to fetch') {
+        setError('The server took too long to respond. Try uploading fewer or smaller files.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setParsing(false)
     }

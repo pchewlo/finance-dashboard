@@ -1,5 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 
+export const config = {
+  maxDuration: 60,
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -74,7 +78,7 @@ ${JSON.stringify(finances, null, 2)}
 Please analyze and provide structured recommendations.`
 
     const message = await client.messages.create({
-      model: 'claude-opus-4-6',
+      model: 'claude-sonnet-4-6',
       max_tokens: 6000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }]
