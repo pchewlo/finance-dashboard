@@ -42,7 +42,6 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
   const isMobile = useIsMobile()
   const [goals, setGoals] = useState(initialGoals || {
     current_age: '',
-    target_age: '',
     target_net_worth: '',
     monthly_savings: '',
     priorities: '',
@@ -80,7 +79,6 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
     onSubmit({
       ...goals,
       current_age: parseInt(goals.current_age) || 0,
-      target_age: parseInt(goals.target_age) || 0,
       target_net_worth: parseFloat(goals.target_net_worth) || 0,
       monthly_savings: parseFloat(goals.monthly_savings) || 0,
       property_value: parseFloat(goals.property_value) || 0,
@@ -101,15 +99,9 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
       </div>
 
       <Card>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
-          <div>
-            <label style={labelStyle}>Current age</label>
-            <input style={inputStyle} type="number" placeholder="30" value={goals.current_age} onChange={e => update('current_age', e.target.value)} />
-          </div>
-          <div>
-            <label style={labelStyle}>Target age</label>
-            <input style={inputStyle} type="number" placeholder="50" value={goals.target_age} onChange={e => update('target_age', e.target.value)} />
-          </div>
+        <div>
+          <label style={labelStyle}>Current age</label>
+          <input style={inputStyle} type="number" placeholder="30" value={goals.current_age} onChange={e => update('current_age', e.target.value)} />
         </div>
 
         <div style={{ marginTop: 16 }}>
@@ -295,15 +287,16 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       return
     }
 
-    // Truncate large content client-side and warn
+    // Truncate large text content client-side (PDFs are base64 and stay full size)
     const trimmedFiles = files.map(f => {
       if (f.type === 'pdf') return f
-      return { ...f, content: String(f.content || '').slice(0, 30000) }
+      return { ...f, content: String(f.content || '').slice(0, 60000) }
     })
 
     const payload = JSON.stringify({ files: trimmedFiles })
-    if (payload.length > 3_500_000) {
-      setError('Files are too large combined. Try uploading fewer files or smaller statements.')
+    // 9MB cap (Vercel bodyParser is 10MB, leave headroom for JSON overhead)
+    if (payload.length > 9_000_000) {
+      setError('Files are too large combined (max ~10MB). Try uploading fewer files or smaller statements.')
       return
     }
 

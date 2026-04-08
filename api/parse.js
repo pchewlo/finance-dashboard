@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export const config = {
   api: {
-    bodyParser: { sizeLimit: '4mb' },
+    bodyParser: { sizeLimit: '10mb' },
   },
   // maxDuration only applies on Vercel Pro+ (Hobby caps at 60s).
   maxDuration: 60,

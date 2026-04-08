@@ -240,7 +240,6 @@ function Overview({ finances, goals }) {
           <SectionTitle>Your goals</SectionTitle>
           <Card>
             {goals.target_net_worth > 0 && <DataRow label="Target net worth" value={fmt(goals.target_net_worth)} bold color={COLORS.accent} />}
-            {goals.target_age && <DataRow label="Target age" value={`${goals.target_age} years old`} />}
             {goals.current_age && <DataRow label="Current age" value={`${goals.current_age} years old`} />}
             {goals.monthly_savings > 0 && <DataRow label="Planned monthly savings" value={`${fmt(goals.monthly_savings)}/mo`} color={COLORS.green} />}
             {goals.priorities && <DataRow label="Top priority" value={goals.priorities} />}
@@ -755,7 +754,6 @@ function Goals({ finances, goals }) {
   const target = goals.target_net_worth || 0
   const baseMonthlySavings = goals.monthly_savings || 0
   const currentAge = goals.current_age || 30
-  const baseTargetAge = goals.target_age || (currentAge + 20)
 
   // Scenario sliders — start at baseline, user can adjust
   const [savingsAdjust, setSavingsAdjust] = useState(0) // delta to monthly savings
@@ -780,6 +778,7 @@ function Goals({ finances, goals }) {
   const baseline = project(7) // for comparison if user changes things
   const reachIdx = projection.findIndex(v => v >= target)
   const reachAge = reachIdx >= 0 ? currentAge + reachIdx : null
+  const yearsToGoal = reachAge ? reachAge - currentAge : null
 
   const sliderStyle = {
     width: '100%',
@@ -794,12 +793,12 @@ function Goals({ finances, goals }) {
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <MetricCard label="Current Net Worth" value={fmt(currentNW)} />
-        <MetricCard label="Target" value={fmt(target)} sub={`By age ${baseTargetAge}`} color={COLORS.accent} />
+        <MetricCard label="Target" value={fmt(target)} color={COLORS.accent} />
         <MetricCard
           label="Goal reached"
           value={reachAge ? `Age ${reachAge}` : 'Not in 30y'}
-          sub={reachAge && reachAge <= baseTargetAge ? `${baseTargetAge - reachAge} years early` : reachAge ? `${reachAge - baseTargetAge} years late` : ''}
-          color={reachAge && reachAge <= baseTargetAge ? COLORS.green : reachAge ? COLORS.coral : COLORS.red}
+          sub={yearsToGoal !== null ? `${yearsToGoal} year${yearsToGoal !== 1 ? 's' : ''} from now` : ''}
+          color={reachAge ? COLORS.green : COLORS.red}
         />
       </div>
 
