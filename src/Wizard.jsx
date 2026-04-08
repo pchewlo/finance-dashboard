@@ -307,36 +307,69 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       return
     }
 
-    // Truncate text content per file. PDFs are now extracted text too, not base64.
-    const trimmedFiles = files.map(f => ({
-      ...f,
-      content: String(f.content || '').slice(0, 80000),
-    }))
-
-    const payload = JSON.stringify({ files: trimmedFiles })
-    // Sanity cap — should never trigger now that PDFs are text-only
-    if (payload.length > 4_000_000) {
-      setError('Combined extracted text is over 4MB. Try splitting your files into smaller batches.')
-      return
-    }
-
     setParsing(true)
     setError(null)
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 90000)
+
     try {
-      const res = await fetch('/api/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-        signal: controller.signal,
+      // Fire one parallel request per file. Each one is small and fast (Haiku
+      // + cached prompt). The slowest file determines total time, not the sum.
+      const results = await Promise.all(files.map(async (f) => {
+        const res = await fetch('/api/parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: { name: f.name, type: f.type, content: String(f.content || '').slice(0, 60000) } }),
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}))
+          throw new Error(`${f.name}: ${errBody.error || `Server error (${res.status})`}`)
+        }
+        return res.json()
+      }))
+
+      // Merge per-file results into the shape the dashboard expects
+      const accounts = results.map(r => r.account).filter(Boolean)
+
+      // Compute summary client-side from merged accounts
+      const totalHoldings = accounts.reduce((s, a) =>
+        s + (a.holdings || []).reduce((hs, h) => hs + (h.value || 0), 0), 0)
+      const totalCash = accounts
+        .filter(a => ['current', 'savings'].includes(a.account_type))
+        .reduce((s, a) => s + (a.current_balance || 0), 0)
+      const totalLiab = accounts
+        .filter(a => a.account_type === 'mortgage')
+        .reduce((s, a) => s + Math.abs(a.current_balance || 0), 0)
+
+      // Estimate monthly income/outgoing from merged transactions
+      const allTx = accounts.flatMap(a => a.transactions || [])
+      const monthly = {}
+      allTx.forEach(tx => {
+        if (!tx.date) return
+        const ym = tx.date.slice(0, 7)
+        if (!monthly[ym]) monthly[ym] = { inc: 0, out: 0 }
+        if (tx.amount > 0) monthly[ym].inc += tx.amount
+        else monthly[ym].out += tx.amount
       })
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}))
-        throw new Error(errBody.error || `Server error (${res.status})`)
+      const months = Object.values(monthly)
+      const avgInc = months.length ? months.reduce((s, m) => s + m.inc, 0) / months.length : 0
+      const avgOut = months.length ? months.reduce((s, m) => s + m.out, 0) / months.length : 0
+
+      const merged = {
+        accounts,
+        summary: {
+          total_cash: totalCash,
+          total_investments: totalHoldings,
+          total_liabilities: totalLiab,
+          net_worth: totalCash + totalHoldings - totalLiab,
+          monthly_income_avg: avgInc,
+          monthly_outgoing_avg: avgOut,
+          currency: 'GBP',
+        },
       }
-      const data = await res.json()
-      onSubmit(data)
+
+      onSubmit(merged)
     } catch (err) {
       if (err.name === 'AbortError') {
         setError('Parsing took too long (>90s). Try uploading fewer or smaller files.')
