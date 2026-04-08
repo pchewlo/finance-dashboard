@@ -43,6 +43,7 @@ export default function Dashboard({ finances: rawFinances, goals }) {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'portfolio', label: 'Portfolio' },
+    { id: 'tax', label: 'Tax' },
     { id: 'cashflow', label: 'Cash Flow' },
     { id: 'goals', label: 'Goals' },
   ]
@@ -69,6 +70,7 @@ export default function Dashboard({ finances: rawFinances, goals }) {
 
       {activeTab === 'overview' && <Overview finances={finances} goals={goals} />}
       {activeTab === 'portfolio' && <Portfolio finances={finances} />}
+      {activeTab === 'tax' && <TaxEfficiency finances={finances} />}
       {activeTab === 'cashflow' && <CashFlow finances={finances} />}
       {activeTab === 'goals' && <Goals finances={finances} goals={goals} />}
     </>
@@ -331,41 +333,116 @@ function Goals({ finances, goals }) {
   }
 
   const summary = finances?.summary || {}
-  const currentNW = summary.net_worth || 0
+  const propertyEquity = goals.property_equity || 0
+  const currentNW = (summary.net_worth || 0) + propertyEquity
   const target = goals.target_net_worth || 0
-  const monthlySavings = goals.monthly_savings || 0
+  const baseMonthlySavings = goals.monthly_savings || 0
   const currentAge = goals.current_age || 30
-  const targetAge = goals.target_age || (currentAge + 20)
-  const yearsUntilTarget = targetAge - currentAge
+  const baseTargetAge = goals.target_age || (currentAge + 20)
 
-  // Project forward at 7% real return
-  const years = Array.from({ length: Math.max(1, yearsUntilTarget) + 1 }, (_, i) => currentAge + i)
+  // Scenario sliders — start at baseline, user can adjust
+  const [savingsAdjust, setSavingsAdjust] = useState(0) // delta to monthly savings
+  const [returnRate, setReturnRate] = useState(7) // % annual real return
+  const [lumpSum, setLumpSum] = useState(0) // one-time injection
+
+  const monthlySavings = Math.max(0, baseMonthlySavings + savingsAdjust)
+
+  // Always project 30 years from current age so the chart can show goal reach
+  const horizonYears = 30
+  const years = Array.from({ length: horizonYears + 1 }, (_, i) => currentAge + i)
+
   function project(rate) {
-    let v = currentNW
+    let v = currentNW + lumpSum
     return years.map((_, i) => {
-      if (i > 0) v = v * (1 + rate) + monthlySavings * 12
+      if (i > 0) v = v * (1 + rate / 100) + monthlySavings * 12
       return Math.round(v)
     })
   }
-  const p7 = project(0.07)
-  const p5 = project(0.05)
 
-  // Find when target is reached
-  const reachAt7 = p7.findIndex(v => v >= target)
-  const reachAt5 = p5.findIndex(v => v >= target)
+  const projection = project(returnRate)
+  const baseline = project(7) // for comparison if user changes things
+  const reachIdx = projection.findIndex(v => v >= target)
+  const reachAge = reachIdx >= 0 ? currentAge + reachIdx : null
+
+  const sliderStyle = {
+    width: '100%',
+    accentColor: COLORS.accent,
+  }
+
+  const labelStyle = { fontSize: 13, fontWeight: 500, color: COLORS.text, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }
+
+  const isAdjusted = savingsAdjust !== 0 || returnRate !== 7 || lumpSum !== 0
 
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         <MetricCard label="Current Net Worth" value={fmt(currentNW)} />
-        <MetricCard label="Target" value={fmt(target)} sub={`By age ${targetAge}`} color={COLORS.accent} />
+        <MetricCard label="Target" value={fmt(target)} sub={`By age ${baseTargetAge}`} color={COLORS.accent} />
         <MetricCard
-          label="At 7% return"
-          value={reachAt7 >= 0 ? `Age ${currentAge + reachAt7}` : 'Not reached'}
-          sub={`+ ${fmt(monthlySavings)}/mo`}
-          color={COLORS.green}
+          label="Goal reached"
+          value={reachAge ? `Age ${reachAge}` : 'Not in 30y'}
+          sub={reachAge && reachAge <= baseTargetAge ? `${baseTargetAge - reachAge} years early` : reachAge ? `${reachAge - baseTargetAge} years late` : ''}
+          color={reachAge && reachAge <= baseTargetAge ? COLORS.green : reachAge ? COLORS.coral : COLORS.red}
         />
       </div>
+
+      <SectionTitle>What if...</SectionTitle>
+      <Card>
+        <div style={{ display: 'grid', gap: 24 }}>
+          <div>
+            <div style={labelStyle}>
+              <span>Monthly savings</span>
+              <span style={{ color: COLORS.textMuted, fontVariantNumeric: 'tabular-nums' }}>
+                {fmt(monthlySavings)}/mo {savingsAdjust !== 0 && <span style={{ color: savingsAdjust > 0 ? COLORS.green : COLORS.red }}>({savingsAdjust > 0 ? '+' : ''}{fmt(savingsAdjust)})</span>}
+              </span>
+            </div>
+            <input type="range" min={-baseMonthlySavings} max={5000} step={100} value={savingsAdjust} onChange={e => setSavingsAdjust(parseInt(e.target.value))} style={sliderStyle} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: COLORS.textDim, marginTop: 2 }}>
+              <span>{fmt(0)}</span>
+              <span>{fmt(baseMonthlySavings + 5000)}/mo</span>
+            </div>
+          </div>
+
+          <div>
+            <div style={labelStyle}>
+              <span>Annual return assumption</span>
+              <span style={{ color: COLORS.textMuted, fontVariantNumeric: 'tabular-nums' }}>{returnRate.toFixed(1)}% real</span>
+            </div>
+            <input type="range" min={2} max={12} step={0.5} value={returnRate} onChange={e => setReturnRate(parseFloat(e.target.value))} style={sliderStyle} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: COLORS.textDim, marginTop: 2 }}>
+              <span>2% (cash)</span>
+              <span>7% (long-run equities)</span>
+              <span>12%</span>
+            </div>
+          </div>
+
+          <div>
+            <div style={labelStyle}>
+              <span>One-time lump sum</span>
+              <span style={{ color: COLORS.textMuted, fontVariantNumeric: 'tabular-nums' }}>{fmt(lumpSum)}</span>
+            </div>
+            <input type="range" min={0} max={500000} step={5000} value={lumpSum} onChange={e => setLumpSum(parseInt(e.target.value))} style={sliderStyle} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: COLORS.textDim, marginTop: 2 }}>
+              <span>£0</span>
+              <span>£500k (e.g. inheritance, bonus)</span>
+            </div>
+          </div>
+
+          {isAdjusted && (
+            <button onClick={() => { setSavingsAdjust(0); setReturnRate(7); setLumpSum(0) }} style={{
+              background: 'none',
+              border: `1px solid ${COLORS.cardBorder}`,
+              borderRadius: 6,
+              padding: '6px 14px',
+              fontSize: 12,
+              color: COLORS.textMuted,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              alignSelf: 'flex-start',
+            }}>Reset to baseline</button>
+          )}
+        </div>
+      </Card>
 
       <SectionTitle>Path to your goal</SectionTitle>
       <Card>
@@ -374,9 +451,9 @@ function Goals({ finances, goals }) {
           data: {
             labels: years,
             datasets: [
-              { label: '7% return', data: p7, borderColor: COLORS.blue, backgroundColor: 'rgba(35,131,226,0.06)', fill: true, tension: 0.3, pointRadius: 2 },
-              { label: '5% return', data: p5, borderColor: COLORS.teal, fill: false, tension: 0.3, pointRadius: 2, borderDash: [4, 4] },
-              { label: 'Target', data: years.map(() => target), borderColor: 'rgba(55,53,47,0.15)', borderDash: [6, 4], pointRadius: 0, fill: false },
+              { label: 'Your scenario', data: projection, borderColor: COLORS.blue, backgroundColor: 'rgba(35,131,226,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2.5 },
+              ...(isAdjusted ? [{ label: 'Baseline (7%)', data: baseline, borderColor: COLORS.textDim, fill: false, tension: 0.3, pointRadius: 0, borderDash: [4, 4], borderWidth: 1.5 }] : []),
+              { label: 'Target', data: years.map(() => target), borderColor: 'rgba(224,62,62,0.4)', borderDash: [6, 4], pointRadius: 0, fill: false, borderWidth: 1.5 },
             ]
           },
           options: {
@@ -388,8 +465,184 @@ function Goals({ finances, goals }) {
             },
           }
         }} />
-        <Legend items={[['7% return', COLORS.blue], ['5% return', COLORS.teal], ['Target', COLORS.textDim]]} />
+        <Legend items={isAdjusted
+          ? [['Your scenario', COLORS.blue], ['Baseline (7%)', COLORS.textDim], ['Target', COLORS.red]]
+          : [['Projection', COLORS.blue], ['Target', COLORS.red]]
+        } />
       </Card>
+    </>
+  )
+}
+
+function TaxEfficiency({ finances }) {
+  const accounts = finances?.accounts || []
+  const allHoldings = accounts.flatMap(acc =>
+    (acc.holdings || []).map(h => ({ ...h, account_type: acc.account_type }))
+  )
+
+  // Group by tax wrapper
+  const wrappers = {
+    isa: { label: 'ISA', tax: 'Tax-free', color: COLORS.green, total: 0, gains: 0, holdings: [] },
+    pension: { label: 'Pension', tax: 'Tax-deferred', color: COLORS.purple, total: 0, gains: 0, holdings: [] },
+    gia: { label: 'GIA', tax: 'Taxable', color: COLORS.red, total: 0, gains: 0, holdings: [] },
+    other: { label: 'Other', tax: '—', color: COLORS.textDim, total: 0, gains: 0, holdings: [] },
+  }
+
+  allHoldings.forEach(h => {
+    const key = wrappers[h.account_type] ? h.account_type : 'other'
+    wrappers[key].total += h.value || 0
+    wrappers[key].gains += Math.max(0, (h.value || 0) - (h.cost || 0))
+    wrappers[key].holdings.push(h)
+  })
+
+  const totalInvested = Object.values(wrappers).reduce((s, w) => s + w.total, 0)
+
+  if (totalInvested === 0) {
+    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14 }}>No investment holdings detected. Upload investment account statements to see tax efficiency analysis.</div></Card>
+  }
+
+  const isaPct = (wrappers.isa.total / totalInvested) * 100
+  const giaPct = (wrappers.gia.total / totalInvested) * 100
+  const pensionPct = (wrappers.pension.total / totalInvested) * 100
+
+  // CGT exposure
+  const cgtAllowance = 3000
+  const cgtRate = 0.20
+  const taxableGains = Math.max(0, wrappers.gia.gains - cgtAllowance)
+  const potentialCgt = taxableGains * cgtRate
+
+  // ISA recommendation
+  const isaAnnualLimit = 20000
+  const yearsToShelter = wrappers.gia.total > 0 ? Math.ceil(wrappers.gia.total / isaAnnualLimit) : 0
+
+  // Findings
+  const findings = []
+  if (giaPct > 50 && wrappers.gia.total > 20000) {
+    findings.push({
+      severity: 'critical',
+      title: 'High GIA concentration',
+      body: `${giaPct.toFixed(0)}% of your portfolio sits in a taxable General Investment Account. Bed & ISA £${isaAnnualLimit.toLocaleString()}/year to start sheltering it.`,
+      impact: potentialCgt,
+    })
+  }
+  if (isaPct < 10 && totalInvested > 30000) {
+    findings.push({
+      severity: 'action',
+      title: 'ISA underused',
+      body: `Only ${isaPct.toFixed(0)}% in ISA. You can shelter £${isaAnnualLimit.toLocaleString()} per tax year — this is a permanent tax-free allowance.`,
+      impact: 0,
+    })
+  }
+  if (wrappers.gia.gains > cgtAllowance) {
+    findings.push({
+      severity: 'action',
+      title: 'CGT exposure',
+      body: `Unrealised gains in GIA exceed your £${cgtAllowance.toLocaleString()} annual CGT allowance by £${(wrappers.gia.gains - cgtAllowance).toLocaleString()}. ~${fmt(potentialCgt)} potential tax at 20%.`,
+      impact: potentialCgt,
+    })
+  }
+  if (pensionPct > 0 && pensionPct < 15 && totalInvested > 50000) {
+    findings.push({
+      severity: 'opportunity',
+      title: 'Pension capacity',
+      body: `Pension is only ${pensionPct.toFixed(0)}% of your portfolio. Pension contributions get income tax relief upfront — consider increasing if you're a higher-rate taxpayer.`,
+      impact: 0,
+    })
+  }
+  if (giaPct < 30 && isaPct > 40) {
+    findings.push({
+      severity: 'on_track',
+      title: 'Well sheltered',
+      body: `${isaPct.toFixed(0)}% in ISA, ${pensionPct.toFixed(0)}% in pension. Most of your investments are protected from CGT and dividend tax.`,
+      impact: 0,
+    })
+  }
+
+  const severityToColor = {
+    critical: '#E03E3E',
+    action: '#D9730D',
+    opportunity: '#0F7B6C',
+    on_track: '#0F7B6C',
+  }
+  const severityToTagColor = {
+    critical: 'red',
+    action: 'orange',
+    opportunity: 'green',
+    on_track: 'green',
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+        <MetricCard label="ISA Tax-Free" value={fmt(wrappers.isa.total)} sub={`${isaPct.toFixed(0)}% of portfolio`} color={COLORS.green} />
+        <MetricCard label="Pension Deferred" value={fmt(wrappers.pension.total)} sub={`${pensionPct.toFixed(0)}% of portfolio`} color={COLORS.purple} />
+        <MetricCard label="GIA Taxable" value={fmt(wrappers.gia.total)} sub={`${giaPct.toFixed(0)}% of portfolio`} color={giaPct > 50 ? COLORS.red : COLORS.text} />
+      </div>
+
+      <SectionTitle>Wrapper allocation</SectionTitle>
+      <Card>
+        <ChartCanvas id="taxWrapperBar" height={180} config={{
+          type: 'bar',
+          data: {
+            labels: ['ISA (tax-free)', 'Pension (deferred)', 'GIA (taxable)'],
+            datasets: [{
+              data: [wrappers.isa.total, wrappers.pension.total, wrappers.gia.total],
+              backgroundColor: [COLORS.green, COLORS.purple, COLORS.red],
+              borderRadius: 4, barPercentage: 0.55,
+            }]
+          },
+          options: {
+            ...chartDefaults, indexAxis: 'y',
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: v => fmt(v.raw) } } },
+            scales: {
+              x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, callback: v => fmtK(v) } },
+              y: { ...chartDefaults.scales.y, grid: { display: false } },
+            },
+          }
+        }} />
+      </Card>
+
+      {wrappers.gia.total > 0 && (
+        <>
+          <SectionTitle>CGT exposure</SectionTitle>
+          <Card style={{ borderLeft: potentialCgt > 0 ? '3px solid #E03E3E' : '3px solid #0F7B6C' }}>
+            <DataRow label="GIA holdings value" value={fmt(wrappers.gia.total)} />
+            <DataRow label="Unrealised gains" value={fmt(wrappers.gia.gains)} />
+            <DataRow label="Annual CGT allowance" value={fmt(cgtAllowance)} sub="2024/25" />
+            <DataRow label="Taxable gains (over allowance)" value={fmt(taxableGains)} color={taxableGains > 0 ? COLORS.red : COLORS.text} />
+            <DataRow label="Potential CGT at 20%" value={fmt(potentialCgt)} color={potentialCgt > 0 ? COLORS.red : COLORS.green} bold />
+            {yearsToShelter > 0 && (
+              <div style={{ marginTop: 16, padding: '12px 16px', background: COLORS.accentDim, borderRadius: 6, fontSize: 13, color: COLORS.text, lineHeight: 1.5 }}>
+                <strong>Bed &amp; ISA strategy:</strong> At £{isaAnnualLimit.toLocaleString()}/year ISA contributions, it would take ~{yearsToShelter} year{yearsToShelter !== 1 ? 's' : ''} to fully shelter your GIA holdings. If you have a partner, double the speed by using their ISA too.
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {findings.length > 0 && (
+        <>
+          <SectionTitle>Tax findings</SectionTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {findings.map((f, i) => (
+              <Card key={i} style={{ borderLeft: `3px solid ${severityToColor[f.severity]}` }}>
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: severityToColor[f.severity], background: `${severityToColor[f.severity]}14`, padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>
+                    {f.severity.replace('_', ' ').toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>{f.title}</div>
+                <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65 }}>{f.body}</div>
+                {f.impact > 0 && (
+                  <div style={{ fontSize: 12, color: COLORS.accent, marginTop: 12, fontWeight: 500 }}>
+                    Est. impact: {fmt(f.impact)}
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
     </>
   )
 }
