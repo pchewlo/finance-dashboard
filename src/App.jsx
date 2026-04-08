@@ -297,7 +297,7 @@ function OverviewTab() {
           <div style={{ marginBottom: 12 }}>
             <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 500, color: '#0F7B6C', background: 'rgba(15,123,108,0.08)', padding: '2px 8px', borderRadius: 3, lineHeight: '20px' }}>Opportunity</span>
           </div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>£150k money market drag</div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>Money market drag</div>
           <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.65, ...(demo ? blurStyle : {}) }}>
             After the Porsche (~£50k), £150k remains in Sterling Money Market earning ~4.5%. Equities return ~7% long-run. The gap on £150k is ~£4k/year compounding. Deploy or accept the drag consciously.
           </div>
