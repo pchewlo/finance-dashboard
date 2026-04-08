@@ -307,11 +307,14 @@ export function CsvUpload({ onSubmit, onBack }) {
 
     setParsing(true)
     setError(null)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 90000)
     try {
       const res = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: payload,
+        signal: controller.signal,
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
@@ -320,13 +323,14 @@ export function CsvUpload({ onSubmit, onBack }) {
       const data = await res.json()
       onSubmit(data)
     } catch (err) {
-      const msg = err.message || 'Failed to parse files'
-      if (msg === 'Failed to fetch') {
-        setError('The server took too long to respond. Try uploading fewer or smaller files.')
+      if (err.name === 'AbortError') {
+        setError('Parsing took too long (>90s). Try uploading fewer or smaller files.')
       } else {
-        setError(msg)
+        const msg = err.message || 'Failed to parse files'
+        setError(msg === 'Failed to fetch' ? 'The server took too long to respond. Try uploading fewer or smaller files.' : msg)
       }
     } finally {
+      clearTimeout(timeoutId)
       setParsing(false)
     }
   }
@@ -423,6 +427,9 @@ export function Recommendations({ goals, finances, onBack }) {
 
   React.useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 90000)
+
     async function load() {
       setLoading(true)
       try {
@@ -430,13 +437,15 @@ export function Recommendations({ goals, finances, onBack }) {
         const slimFinances = finances ? {
           summary: finances.summary,
           accounts: (finances.accounts || []).map(acc => ({
-            source_file: acc.source_file,
-            detected_provider: acc.detected_provider,
+            provider: acc.detected_provider,
             account_type: acc.account_type,
             currency: acc.currency,
             current_balance: acc.current_balance,
-            holdings: acc.holdings,
-            transaction_count: (acc.transactions || []).length,
+            holdings: (acc.holdings || []).map(h => ({
+              name: h.name,
+              value: h.value,
+              cost: h.cost,
+            })),
           })),
         } : null
 
@@ -444,6 +453,7 @@ export function Recommendations({ goals, finances, onBack }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ goals, finances: slimFinances }),
+          signal: controller.signal,
         })
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}))
@@ -453,15 +463,20 @@ export function Recommendations({ goals, finances, onBack }) {
         if (!cancelled) setData(result)
       } catch (err) {
         if (!cancelled) {
-          const msg = err.message || 'Failed to generate recommendations'
-          setError(msg === 'Failed to fetch' ? 'The server took too long to respond. Please try again.' : msg)
+          if (err.name === 'AbortError') {
+            setError('The recommendations took too long to generate (>90s). The server may be overloaded. Please try again.')
+          } else {
+            const msg = err.message || 'Failed to generate recommendations'
+            setError(msg === 'Failed to fetch' ? 'The server took too long to respond. Please try again.' : msg)
+          }
         }
       } finally {
+        clearTimeout(timeoutId)
         if (!cancelled) setLoading(false)
       }
     }
     load()
-    return () => { cancelled = true }
+    return () => { cancelled = true; clearTimeout(timeoutId); controller.abort() }
   }, [retryKey])
 
   if (loading) {

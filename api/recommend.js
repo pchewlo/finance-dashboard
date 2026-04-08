@@ -1,7 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
 
+// NOTE: maxDuration only applies on Vercel Pro+ (Hobby caps at 60s).
+// Keep this conservative so the function exits before Hobby's hard limit.
 export const config = {
-  maxDuration: 120,
+  maxDuration: 60,
 }
 
 export default async function handler(req, res) {
@@ -22,64 +24,36 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing goals or finances' })
     }
 
-    const systemPrompt = `You are a UK-based personal finance advisor providing actionable recommendations. The user will share their financial position and their goals. You must produce a structured JSON response with specific, prioritized recommendations.
+    const systemPrompt = `You are a UK personal finance advisor. Output ONLY valid JSON matching this exact schema (no markdown, no commentary):
 
-Return STRICTLY this JSON shape (no markdown, no commentary, just JSON):
 {
-  "summary": "2-3 sentence overview of the user's financial position",
-  "headline_metric": {
-    "label": "e.g. Years to goal",
-    "value": "e.g. 12 years",
-    "context": "e.g. assuming 7% real return and current contributions"
-  },
+  "summary": "2 sentences on their position",
+  "headline_metric": { "label": "string", "value": "string", "context": "string" },
   "findings": [
-    {
-      "severity": "critical|action|opportunity|on_track",
-      "title": "Short title (3-6 words)",
-      "body": "2-3 sentence explanation with specific numbers from their data",
-      "estimated_impact_gbp": number
-    }
+    { "severity": "critical|action|opportunity|on_track", "title": "3-6 words", "body": "2 sentences with numbers", "estimated_impact_gbp": number }
   ],
   "recommendations": [
-    {
-      "priority": 1,
-      "title": "Action title",
-      "rationale": "Why this matters for THIS user given their goals and position",
-      "steps": ["Step 1", "Step 2", "Step 3"],
-      "estimated_value_gbp": number,
-      "timeframe": "immediate|this_month|this_quarter|this_year"
-    }
+    { "priority": 1, "title": "string", "rationale": "1-2 sentences", "steps": ["...", "..."], "estimated_value_gbp": number, "timeframe": "immediate|this_month|this_quarter|this_year" }
   ],
   "risks": [
-    {
-      "title": "Risk title",
-      "description": "What could go wrong",
-      "mitigation": "What to do about it"
-    }
+    { "title": "string", "description": "1 sentence", "mitigation": "1 sentence" }
   ]
 }
 
-Rules:
-- Be specific. Reference exact numbers from their data.
-- Prioritize by impact: critical first.
-- Consider UK tax wrappers (ISA £20k/year, Pension annual allowance, CGT allowance £3k, Bed & ISA strategy)
-- If they have GIA holdings with gains, always recommend Bed & ISA
-- If they have excess cash above 6mo expenses, recommend deploying
-- If they have a mortgage, comment on rate/timing
-- Tie every recommendation back to their stated goals
-- Provide 4-8 recommendations max, ordered by priority`
+Constraints:
+- Reference specific numbers from the data
+- 3-5 findings, 4-6 recommendations, 1-3 risks
+- UK tax context: ISA £20k/yr, CGT allowance £3k, Bed & ISA for GIA gains, pension annual allowance
+- Tie recommendations to their goals
+- Be concise — every field should be useful, no fluff`
 
-    const userMessage = `My goals:
-${JSON.stringify(goals, null, 2)}
+    const userMessage = `Goals: ${JSON.stringify(goals)}
 
-My current financial position:
-${JSON.stringify(finances, null, 2)}
-
-Please analyze and provide structured recommendations.`
+Finances: ${JSON.stringify(finances)}`
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 6000,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 3500,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }]
     })
@@ -87,10 +61,16 @@ Please analyze and provide structured recommendations.`
     const text = message.content[0].text.trim()
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      return res.status(500).json({ error: 'Could not parse Claude response', raw: text })
+      return res.status(500).json({ error: 'Could not parse Claude response', raw: text.slice(0, 500) })
     }
 
-    const parsed = JSON.parse(jsonMatch[0])
+    let parsed
+    try {
+      parsed = JSON.parse(jsonMatch[0])
+    } catch (parseErr) {
+      return res.status(500).json({ error: 'Invalid JSON from model: ' + parseErr.message })
+    }
+
     return res.status(200).json(parsed)
   } catch (err) {
     console.error('Recommend error:', err)

@@ -4,7 +4,8 @@ export const config = {
   api: {
     bodyParser: { sizeLimit: '4mb' },
   },
-  maxDuration: 120,
+  // maxDuration only applies on Vercel Pro+ (Hobby caps at 60s).
+  maxDuration: 60,
 }
 
 export default async function handler(req, res) {
