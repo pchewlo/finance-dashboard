@@ -3,12 +3,17 @@ import { COLORS, FONT, DemoContext, Button, useIsMobile } from './ui.jsx'
 import Dashboard from './Dashboard.jsx'
 import { Welcome, GoalsForm, CsvUpload, Recommendations } from './Wizard.jsx'
 
-const STORAGE_KEY = 'finance-app-state-v1'
+const STORAGE_KEY = 'finance-app-state-v2'
+const LEGACY_KEYS = ['finance-app-state-v1']
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
+    if (!raw) {
+      // Clean up any legacy keys so they don't accumulate
+      LEGACY_KEYS.forEach(k => { try { localStorage.removeItem(k) } catch {} })
+      return null
+    }
     return JSON.parse(raw)
   } catch {
     return null
@@ -21,7 +26,46 @@ function saveState(state) {
   } catch {}
 }
 
-export default function App() {
+// Error boundary so a render bug never produces a totally blank screen
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  componentDidCatch(error, info) { console.error('App crashed:', error, info) }
+  reset = () => {
+    try { localStorage.removeItem(STORAGE_KEY) } catch {}
+    LEGACY_KEYS.forEach(k => { try { localStorage.removeItem(k) } catch {} })
+    window.location.reload()
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ background: COLORS.pageBg, minHeight: '100vh', fontFamily: FONT, color: COLORS.text, padding: '60px 24px' }}>
+          <div style={{ maxWidth: 560, margin: '0 auto', background: '#FFFFFF', border: `1px solid ${COLORS.cardBorder}`, borderRadius: 8, padding: '32px 36px', boxShadow: 'rgba(15,15,15,0.04) 0px 1px 3px' }}>
+            <div style={{ fontSize: 12, color: '#E03E3E', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 600 }}>Something went wrong</div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 12px', letterSpacing: '-0.01em' }}>The audit hit a snag rendering your data.</h1>
+            <p style={{ fontSize: 14, color: COLORS.textMuted, lineHeight: 1.55, margin: '0 0 16px' }}>
+              This can happen after an app update if your saved data is from an older version. Resetting will clear your local data and let you start a fresh audit. Your statements are not stored on our servers.
+            </p>
+            {this.state.error?.message && (
+              <pre style={{ fontSize: 11, color: COLORS.textDim, background: COLORS.pageBg, padding: 12, borderRadius: 4, overflow: 'auto', margin: '0 0 16px' }}>{String(this.state.error.message)}</pre>
+            )}
+            <button onClick={this.reset} style={{
+              background: COLORS.text, color: '#FFFFFF', border: 'none', borderRadius: 6,
+              padding: '10px 20px', fontSize: 14, fontFamily: 'inherit', fontWeight: 500, cursor: 'pointer',
+            }}>Reset and reload</button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+export default function AppWithBoundary() {
+  return <ErrorBoundary><App /></ErrorBoundary>
+}
+
+function App() {
   const saved = loadState()
   const [step, setStep] = useState(saved?.step || 'welcome')
   const [goals, setGoals] = useState(saved?.goals || null)
