@@ -33,7 +33,7 @@ Output STRICTLY this JSON shape with no markdown or commentary:
 }
 
 CRITICAL: Output token budget is limited. You MUST follow these rules to avoid truncation:
-- Return at most 60 transactions PER ACCOUNT. If more, return only the most recent 60.
+- Return at most 200 transactions PER ACCOUNT. If more, return only the most recent 200.
 - Keep "description" under 40 characters — abbreviate aggressively
 - Round amounts to whole numbers
 - Return at most 30 holdings per account
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
 
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 8000,
+      max_tokens: 16000,
       system: [
         {
           type: 'text',

@@ -28,31 +28,63 @@ function classifyGeography(name = '') {
   return 'Unclassified'
 }
 
+// Patterns that strongly indicate NOT a subscription (one-off purchases)
+const NON_SUB_PATTERNS = /\b(uber|lyft|bolt|deliveroo|just\s?eat|doordash|grubhub|amazon|tesco|sainsbury|asda|aldi|lidl|waitrose|m&s|marks|coop|costa|starbucks|pret|greggs|mcdonald|kfc|burger|nando|wagamama|pizza|restaurant|cafe|bar|pub|hotel|airbnb|booking|trainline|tfl|atm|cash|withdraw|pending|aeropuerto|airport|gas station|petrol|shell|bp|esso)\b/i
+
+// Patterns that strongly indicate IS a subscription
+const SUB_PATTERNS = /\b(netflix|spotify|apple\s?music|youtube|prime|disney|hbo|paramount|hulu|audible|kindle|icloud|google\s?one|dropbox|onedrive|microsoft|adobe|figma|notion|github|chatgpt|claude|openai|anthropic|nordvpn|expressvpn|protonmail|gym|peloton|patreon|substack|medium|linkedin|grammarly|duolingo|babbel|headspace|calm|strava|fitbit|tinder|bumble|hinge|playstation|xbox|nintendo|insurance|premium|monthly|subscription|membership)\b/i
+
 // Detect recurring subscriptions from transactions
 function detectSubscriptions(transactions = []) {
   // Group by description (normalized) and check for monthly recurring outgoing
   const groups = {}
   transactions.forEach(t => {
     if (t.amount >= 0) return // outgoing only
-    const key = (t.description || '').toLowerCase().replace(/\d+/g, '').trim().slice(0, 30)
+    if (!t.date) return
+    // Normalize: lowercase, strip digits/punctuation, collapse whitespace, take first 30 chars
+    const key = (t.description || '').toLowerCase().replace(/[\d.,£$€()]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30)
     if (!key) return
     if (!groups[key]) groups[key] = []
     groups[key].push(t)
   })
+
   const subs = []
   Object.entries(groups).forEach(([key, txs]) => {
     if (txs.length < 2) return
-    // Average amount across occurrences (rounded)
+
+    // Reject obvious one-off categories unless the description looks like a known subscription
+    const looksLikeSub = SUB_PATTERNS.test(key)
+    const looksLikeNonSub = NON_SUB_PATTERNS.test(key)
+    if (looksLikeNonSub && !looksLikeSub) return
+
+    // Require occurrences to span at least 2 different months
+    // (catches "monthly" recurring vs "twice in same week")
+    const monthsSeen = new Set(txs.map(t => t.date.slice(0, 7)))
+    if (monthsSeen.size < 2) return
+
+    // Amounts must be tightly grouped — within 5% of average
     const amounts = txs.map(t => Math.abs(t.amount))
     const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length
-    // Check that amounts are similar (within 10% of avg)
-    const allSimilar = amounts.every(a => Math.abs(a - avg) / avg < 0.15)
+    if (avg < 1) return // ignore tiny amounts
+    const allSimilar = amounts.every(a => Math.abs(a - avg) / avg < 0.05)
     if (!allSimilar) return
-    // Use the most recent description
+
+    // Use the most recent (cleanest) description
     const desc = txs[txs.length - 1].description || key
-    subs.push({ description: desc, monthly: avg, occurrences: txs.length })
+    subs.push({
+      description: desc,
+      monthly: avg,
+      occurrences: txs.length,
+      monthsSeen: monthsSeen.size,
+      knownSub: looksLikeSub,
+    })
   })
-  return subs.sort((a, b) => b.monthly - a.monthly)
+
+  // Sort: known subscriptions first, then by monthly cost descending
+  return subs.sort((a, b) => {
+    if (a.knownSub !== b.knownSub) return b.knownSub - a.knownSub
+    return b.monthly - a.monthly
+  })
 }
 
 // Group transactions by category and sum
@@ -712,11 +744,11 @@ function CashFlow({ finances }) {
             <div style={{ marginBottom: 12, fontSize: 13, color: COLORS.textMuted }}>
               Detected {subs.length} recurring payments totalling <strong style={{ color: COLORS.text }}>{fmt(totalSubs)}/mo</strong> ({fmt(totalSubs * 12)}/yr).
             </div>
-            {subs.slice(0, 12).map((s, i) => (
+            {subs.slice(0, 15).map((s, i) => (
               <DataRow
                 key={i}
                 label={s.description}
-                sub={`${s.occurrences} months`}
+                sub={`${s.monthsSeen} month${s.monthsSeen !== 1 ? 's' : ''}`}
                 value={fmt(s.monthly) + '/mo'}
               />
             ))}

@@ -59,7 +59,7 @@ export default function App() {
         <div style={{ maxWidth: 960, margin: '0 auto', padding: isMobile ? '24px 16px 60px' : '40px 24px 80px' }}>
           {/* Top bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isApp ? 24 : 16, flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, letterSpacing: '-0.01em' }}>Finance Audit</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, letterSpacing: '-0.01em' }}>Financial Audit</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {isApp && (
                 <>
@@ -105,7 +105,7 @@ export default function App() {
             <>
               <div style={{ marginBottom: 8 }}>
                 <h1 style={{ fontFamily: 'inherit', fontSize: isMobile ? 24 : 32, fontWeight: 700, margin: 0, lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.02em' }}>
-                  Your financial position
+                  Your audit
                 </h1>
                 <p style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>Based on the data you uploaded</p>
               </div>

@@ -22,34 +22,34 @@ export function Welcome({ onStart }) {
   const isMobile = useIsMobile()
   return (
     <div style={{ textAlign: 'center', padding: isMobile ? '40px 0' : '80px 0' }}>
-      <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>Personal Finance Audit</div>
+      <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>Your complete financial audit</div>
       <h1 style={{ fontFamily: 'inherit', fontSize: isMobile ? 32 : 44, fontWeight: 700, margin: 0, lineHeight: 1.15, color: COLORS.text, letterSpacing: '-0.02em' }}>
-        Understand your money.<br />Get a plan.
+        Are you actually on track?<br />Let's find out.
       </h1>
-      <p style={{ fontSize: 16, color: COLORS.textMuted, marginTop: 16, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
-        Upload your financial statements, share your goals, and get a personalized analysis with actionable recommendations.
+      <p style={{ fontSize: 16, color: COLORS.textMuted, marginTop: 16, maxWidth: 560, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
+        Upload your statements, share your goals, and get a clear, opinionated verdict on your financial position — plus the exact actions to close the gap.
       </p>
       <div style={{ marginTop: 40 }}>
-        <Button onClick={onStart} variant="primary" style={{ padding: '14px 32px', fontSize: 15 }}>Get started</Button>
+        <Button onClick={onStart} variant="primary" style={{ padding: '14px 32px', fontSize: 15 }}>Start my audit</Button>
       </div>
       <div style={{ marginTop: 80, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto' }}>
         <Card style={{ textAlign: 'left' }}>
           <div style={{ marginBottom: 8 }}><Tag color="blue">Step 1</Tag></div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Set your goals</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>Tell us what you're working toward and when.</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>What you're aiming for</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>Tell us your target net worth and financial priorities.</div>
         </Card>
         <Card style={{ textAlign: 'left' }}>
           <div style={{ marginBottom: 8 }}><Tag color="orange">Step 2</Tag></div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Upload statements</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>Drag in CSV exports from your bank, broker, or pension.</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Where you are today</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>Upload exports from your bank, broker, and pension provider.</div>
         </Card>
         <Card style={{ textAlign: 'left' }}>
           <div style={{ marginBottom: 8 }}><Tag color="green">Step 3</Tag></div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Get your plan</div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>AI-generated recommendations based on your real data.</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Are you on track?</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.5 }}>Get a verdict, a financial health score, and prioritized actions.</div>
         </Card>
       </div>
-      <div style={{ marginTop: 32, fontSize: 12, color: COLORS.textDim }}>Your data stays in your browser. Nothing is stored on our servers.</div>
+      <div style={{ marginTop: 32, fontSize: 12, color: COLORS.textDim }}>Your data never leaves your browser. The audit takes 30–60 seconds.</div>
     </div>
   )
 }
@@ -110,8 +110,8 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
     <div style={{ maxWidth: 640, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
         <Tag color="blue">{isEditing ? 'Editing goals' : 'Step 1 of 3'}</Tag>
-        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>{isEditing ? 'Update your goals' : 'What are you working toward?'}</h1>
-        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>{isEditing ? 'Changes will refresh your dashboard and recommendations.' : 'Tell us your goals so we can tailor recommendations.'}</p>
+        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>{isEditing ? 'Update your goals' : 'What does success look like?'}</h1>
+        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>{isEditing ? 'Changes will refresh your audit and recommendations.' : 'Your goals shape every recommendation. Be specific where you can — these aren\'t locked in.'}</p>
       </div>
 
       <Card>
@@ -154,8 +154,8 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
       </Card>
 
       <Card style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>Property</div>
-        <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16 }}>Property is often a major part of net worth. Tell us about your situation.</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>Your home</div>
+        <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 16 }}>Property is often a major part of net worth — including it gives you a more accurate audit.</div>
 
         <div>
           <label style={labelStyle}>Do you own a home?</label>
@@ -406,19 +406,19 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         <div style={{ marginBottom: 32 }}>
           <Tag color="orange">{isEditing ? 'Updating files' : 'Step 2 of 3'}</Tag>
-          <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>Reading your files</h1>
-          <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>This usually takes 15-30 seconds.</p>
+          <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>Running your audit</h1>
+          <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>This usually takes 15–30 seconds.</p>
         </div>
         <LoadingState
           title="Analyzing your finances"
           messages={[
             'Reading your statements...',
+            'Sense-checking your assets...',
+            'Cross-referencing with your goals...',
             'Detecting account types and providers...',
-            'Extracting transactions...',
-            'Identifying holdings and balances...',
-            'Categorizing your spending...',
-            'Calculating monthly averages...',
-            'Building your financial summary...',
+            'Extracting holdings and balances...',
+            'Spotting blind spots...',
+            'Building your verdict...',
             'Almost there...',
           ]}
         />
@@ -427,12 +427,14 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto' }}>
+    <div style={{ maxWidth: 800, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
         <Tag color="orange">{isEditing ? 'Updating files' : 'Step 2 of 3'}</Tag>
-        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>{isEditing ? 'Upload fresh statements' : 'Upload your statements'}</h1>
-        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0 }}>{isEditing ? 'New files will replace your existing data. Your goals will be kept.' : 'Drag in CSV, Excel, or PDF exports from your bank, broker, or pension provider. We extract data in your browser — large files are fine.'}</p>
+        <h1 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '12px 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.01em' }}>{isEditing ? 'Upload fresh statements' : 'Show us where you stand today'}</h1>
+        <p style={{ fontSize: 14, color: COLORS.textMuted, margin: 0, lineHeight: 1.5 }}>{isEditing ? 'New files will replace your existing data. Your goals will be kept.' : 'The more you upload, the more accurate your audit. We extract data in your browser — nothing is stored on our servers.'}</p>
       </div>
+
+      {!isEditing && <UploadGuide />}
 
       <div
         onDragOver={e => { e.preventDefault(); setDragging(true) }}
@@ -447,6 +449,7 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
           cursor: 'pointer',
           background: dragging ? COLORS.accentDim : '#FFFFFF',
           transition: 'all 0.15s',
+          marginTop: isEditing ? 0 : 24,
         }}
       >
         <div style={{ fontSize: 32, marginBottom: 12 }}>📁</div>
@@ -454,6 +457,12 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
         <div style={{ fontSize: 13, color: COLORS.textMuted }}>or click to browse</div>
         <input ref={inputRef} type="file" multiple accept=".csv,.pdf,.xlsx,.xls,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
       </div>
+
+      {!isEditing && (
+        <div style={{ marginTop: 12, fontSize: 12, color: COLORS.textDim, textAlign: 'center' }}>
+          Don't have everything? You can run the audit with what you have and add more files later.
+        </div>
+      )}
 
       {files.length > 0 && (
         <div style={{ marginTop: 20 }}>
@@ -478,8 +487,87 @@ export function CsvUpload({ onSubmit, onBack, isEditing }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
         <Button onClick={onBack} variant="secondary" disabled={parsing}>{isEditing ? 'Cancel' : 'Back'}</Button>
         <Button onClick={handleParse} variant="primary" disabled={parsing || files.length === 0}>
-          {parsing ? 'Analyzing...' : (isEditing ? 'Update my data' : 'Analyze my data')}
+          {parsing ? 'Analyzing...' : (isEditing ? 'Update my data' : 'Run my audit')}
         </Button>
+      </div>
+    </div>
+  )
+}
+
+function UploadGuide() {
+  const isMobile = useIsMobile()
+  const categories = [
+    {
+      tag: 'Bank',
+      tagColor: 'blue',
+      title: 'Bank statements',
+      sub: 'Last 12–24 months from your main current and savings accounts',
+      providers: [
+        { name: 'Monzo', steps: 'App → Account → Statements → Export (CSV or PDF, last 2 years)' },
+        { name: 'Starling', steps: 'App → Account → Statements → Email me a statement (CSV)' },
+        { name: 'Revolut', steps: 'App → Profile → Statements → Generate (CSV or PDF)' },
+        { name: 'HSBC, Barclays, Lloyds, NatWest, Santander', steps: 'Online banking → Statements → Export to CSV' },
+      ],
+      formats: 'CSV, PDF',
+    },
+    {
+      tag: 'Investments',
+      tagColor: 'green',
+      title: 'Investment accounts (ISA, GIA, brokerage)',
+      sub: 'Current holdings and 12 months of transactions',
+      providers: [
+        { name: 'Vanguard UK', steps: 'vanguardinvestor.co.uk → Portfolio → Download (Excel)' },
+        { name: 'Trading 212', steps: 'App → History → Export → CSV (select all-time)' },
+        { name: 'Hargreaves Lansdown', steps: 'My Account → Account history → Download → CSV' },
+        { name: 'AJ Bell, interactive investor, Freetrade', steps: 'Account history → Export / Download → CSV or Excel' },
+      ],
+      formats: 'CSV, Excel, PDF',
+    },
+    {
+      tag: 'Pension',
+      tagColor: 'purple',
+      title: 'Pensions (workplace and SIPP)',
+      sub: 'Latest pension statement showing balance and contributions',
+      providers: [
+        { name: 'Workplace pension (Aviva, Scottish Widows, Standard Life, L&G, NEST)', steps: 'Provider portal → Statements → Latest annual statement (PDF)' },
+        { name: 'SIPP', steps: 'Same as your investment platform — find the holdings export' },
+      ],
+      formats: 'PDF, CSV',
+    },
+    {
+      tag: 'Mortgage',
+      tagColor: 'orange',
+      title: 'Mortgage statement (if you have one)',
+      sub: 'Latest annual statement or current balance letter',
+      providers: [
+        { name: 'Santander, Halifax, Nationwide, NatWest etc.', steps: 'Mortgage provider portal → Statements → Annual mortgage statement (PDF)' },
+      ],
+      formats: 'PDF',
+    },
+  ]
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12, letterSpacing: '-0.01em' }}>What to upload</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+        {categories.map((c, i) => (
+          <Card key={i} style={{ padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Tag color={c.tagColor}>{c.tag}</Tag>
+              <span style={{ fontSize: 11, color: COLORS.textDim }}>{c.formats}</span>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>{c.title}</div>
+            <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 12, lineHeight: 1.5 }}>{c.sub}</div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {c.providers.map((p, j) => (
+                <div key={j} style={{ fontSize: 12, lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 500, color: COLORS.text }}>{p.name}</div>
+                  <div style={{ color: COLORS.textMuted }}>{p.steps}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   )
