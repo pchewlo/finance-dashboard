@@ -72,7 +72,7 @@ export default function App() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
               {isApp && view === 'dashboard' && (
                 <button onClick={() => setView('actionplan')} style={actionPlanBtnStyle}>
-                  Action plan →
+                  {isMobile ? 'Plan →' : 'Action plan →'}
                 </button>
               )}
               {isApp && view === 'actionplan' && (

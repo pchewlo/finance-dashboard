@@ -681,8 +681,28 @@ export function Recommendations({ goals, finances, onBack }) {
     on_track: '#0F7B6C',
   }
 
+  const generatedAt = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
   return (
     <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontSize: 12, color: COLORS.textDim }}>Generated {generatedAt}</div>
+        <button
+          onClick={() => { setData(null); setError(null); setRetryKey(k => k + 1) }}
+          style={{
+            background: 'none',
+            border: `1px solid ${COLORS.cardBorder}`,
+            borderRadius: 6,
+            padding: '6px 14px',
+            fontSize: 12,
+            color: COLORS.textMuted,
+            fontFamily: 'inherit',
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >↻ Re-run audit</button>
+      </div>
+
       <Card>
         <div style={{ fontSize: 12, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Summary</div>
         <div style={{ fontSize: 15, color: COLORS.text, lineHeight: 1.6 }}>{data.summary}</div>

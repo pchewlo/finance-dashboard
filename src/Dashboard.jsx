@@ -730,7 +730,7 @@ function Portfolio({ finances }) {
   const totalChange = totalValue - totalCost
 
   if (allHoldings.length === 0) {
-    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14 }}>No investment holdings detected in your uploaded files.</div></Card>
+    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14, lineHeight: 1.55 }}>We didn't find any investment holdings in your statements. Upload an ISA, GIA, or pension export from Vanguard, Trading 212, Hargreaves Lansdown etc. to add this to your audit.</div></Card>
   }
 
   return (
@@ -938,7 +938,7 @@ function CashFlow({ finances }) {
   const allTx = cashAccounts.flatMap(acc => acc.transactions || [])
 
   if (allTx.length === 0) {
-    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14 }}>No bank transaction data detected. Upload a current or savings account statement (CSV/PDF) to see cash flow.</div></Card>
+    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14, lineHeight: 1.55 }}>We didn't find a current or savings account statement. Upload Monzo, Starling, Revolut, or your bank's CSV/PDF export to see your spending and income trends.</div></Card>
   }
 
   // Group by year-month, then keep only the most recent 12 months
@@ -1118,7 +1118,7 @@ function CashFlow({ finances }) {
 
 function Goals({ finances, goals }) {
   if (!goals) {
-    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14 }}>No goals set yet.</div></Card>
+    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14, lineHeight: 1.55 }}>You haven't set any goals yet. The audit can't tell you if you're on track without knowing where you want to end up. Click 'Edit goals' in the menu to add them.</div></Card>
   }
 
   const summary = finances?.summary || {}
@@ -1362,7 +1362,7 @@ function TaxEfficiency({ finances }) {
   const totalInvested = Object.values(wrappers).reduce((s, w) => s + w.total, 0)
 
   if (totalInvested === 0) {
-    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14 }}>No investment holdings detected. Upload investment account statements to see tax efficiency analysis.</div></Card>
+    return <Card><div style={{ color: COLORS.textMuted, fontSize: 14, lineHeight: 1.55 }}>The audit can't analyze tax efficiency without investment holdings. Upload an ISA, GIA, or pension export to see your wrapper allocation and CGT exposure.</div></Card>
   }
 
   const isaPct = (wrappers.isa.total / totalInvested) * 100
