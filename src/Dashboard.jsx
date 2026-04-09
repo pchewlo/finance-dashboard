@@ -148,17 +148,215 @@ function normalizeFinances(finances) {
   return { ...finances, accounts, summary }
 }
 
-export default function Dashboard({ finances: rawFinances, goals }) {
+// Compute a 0-100 financial health score from emergency fund, liquidity,
+// debt ratio, diversification, and goal pace.
+function computeHealthScore(finances, goals) {
+  const summary = finances?.summary || {}
+  const accounts = finances?.accounts || []
+  const propertyEquity = goals?.property_equity || 0
+  const propertyValue = goals?.property_value || 0
+  const totalCash = summary.total_cash || 0
+  const totalInv = summary.total_investments || 0
+  const totalLiab = (summary.total_liabilities || 0) + (goals?.mortgage_balance || 0)
+  const totalAssets = totalCash + totalInv + propertyValue
+  const monthlyOut = Math.abs(summary.monthly_outgoing_avg || 0)
+  const netWorth = (summary.net_worth || 0) + propertyEquity
+
+  // 1. Emergency fund (max 25 points): 6+ months = full marks
+  const emergencyMonths = monthlyOut > 0 ? totalCash / monthlyOut : 0
+  const emergencyScore = Math.min(25, (emergencyMonths / 6) * 25)
+
+  // 2. Debt ratio (max 20): <30% full, 30-50% partial, >50% none
+  const debtRatio = totalAssets > 0 ? totalLiab / totalAssets : 0
+  let debtScore = 20
+  if (debtRatio > 0.5) debtScore = 0
+  else if (debtRatio > 0.3) debtScore = 10
+
+  // 3. Diversification (max 20): based on asset bucket count
+  const buckets = []
+  if (totalCash > 1000) buckets.push('cash')
+  if (totalInv > 1000) buckets.push('inv')
+  if (propertyValue > 0) buckets.push('property')
+  const types = new Set(accounts.map(a => a.account_type))
+  if (types.has('pension')) buckets.push('pension')
+  const diversificationScore = Math.min(20, buckets.length * 5)
+
+  // 4. Goal pace (max 35): are you on track to hit your target?
+  let goalScore = 17 // neutral default if no goals
+  const target = goals?.target_net_worth || 0
+  const currentAge = goals?.current_age || 30
+  const monthlySavings = goals?.monthly_savings || 0
+  if (target > 0) {
+    // Project 30 years at 7% real return
+    let v = netWorth
+    let reachAge = null
+    for (let i = 0; i < 60; i++) {
+      if (v >= target) { reachAge = currentAge + i; break }
+      v = v * 1.07 + monthlySavings * 12
+    }
+    if (reachAge === null) {
+      goalScore = 0 // not reachable in 60 years
+    } else {
+      const yearsToGoal = reachAge - currentAge
+      // Full marks if reaching in <= 15 years, scaled down to 0 at 60 years
+      goalScore = Math.max(0, Math.min(35, 35 * (1 - (yearsToGoal - 15) / 45)))
+    }
+  }
+
+  const total = Math.round(emergencyScore + debtScore + diversificationScore + goalScore)
+  return Math.max(0, Math.min(100, total))
+}
+
+// Compute the verdict headline + sentence based on goals and finances
+function computeVerdict(finances, goals) {
+  const summary = finances?.summary || {}
+  const propertyEquity = goals?.property_equity || 0
+  const netWorth = (summary.net_worth || 0) + propertyEquity
+  const target = goals?.target_net_worth || 0
+  const currentAge = goals?.current_age || 30
+  const monthlySavings = goals?.monthly_savings || 0
+  const score = computeHealthScore(finances, goals)
+
+  if (target <= 0) {
+    return {
+      status: 'no_goal',
+      headline: "You haven't set a target yet",
+      sentence: 'Add a target net worth in your goals to see whether you\'re on track.',
+      score,
+    }
+  }
+
+  // Project to find reach age at 7% real return
+  let v = netWorth
+  let reachAge = null
+  for (let i = 0; i < 60; i++) {
+    if (v >= target) { reachAge = currentAge + i; break }
+    v = v * 1.07 + monthlySavings * 12
+  }
+
+  if (reachAge === null) {
+    return {
+      status: 'behind',
+      headline: "You're behind your target",
+      sentence: `At your current savings rate of ${fmt(monthlySavings)}/mo and a 7% return, you won't reach ${fmt(target)} in the next 60 years. Increase your savings rate or your target.`,
+      score,
+    }
+  }
+
+  const yearsToGoal = reachAge - currentAge
+  // "On track" if reaching within ~25 years from now, "ahead" if <15
+  if (yearsToGoal <= 15) {
+    return {
+      status: 'ahead',
+      headline: "You're ahead of the curve",
+      sentence: `At ${fmt(monthlySavings)}/mo and a 7% return, you'll hit ${fmt(target)} by age ${reachAge} — that's only ${yearsToGoal} years away.`,
+      score,
+    }
+  }
+  if (yearsToGoal <= 25) {
+    return {
+      status: 'on_track',
+      headline: "You're on track",
+      sentence: `At ${fmt(monthlySavings)}/mo and a 7% return, you'll hit ${fmt(target)} by age ${reachAge} — about ${yearsToGoal} years from now.`,
+      score,
+    }
+  }
+  return {
+    status: 'slow',
+    headline: "You're moving, but slowly",
+    sentence: `At ${fmt(monthlySavings)}/mo and a 7% return, you'll only hit ${fmt(target)} by age ${reachAge} — that's ${yearsToGoal} years away. The Goals tab can show you what would speed it up.`,
+    score,
+  }
+}
+
+// Pick the top 3 most important findings from local analytics
+function getTop3Findings(finances, goals) {
+  const accounts = finances?.accounts || []
+  const summary = finances?.summary || {}
+  const findings = []
+
+  // Tax wrapper concentration
+  const allHoldings = accounts.flatMap(acc => (acc.holdings || []).map(h => ({ ...h, account_type: acc.account_type })))
+  const totalInv = allHoldings.reduce((s, h) => s + (h.value || 0), 0)
+  const giaTotal = allHoldings.filter(h => h.account_type === 'gia').reduce((s, h) => s + (h.value || 0), 0)
+  const giaPct = totalInv > 0 ? (giaTotal / totalInv) * 100 : 0
+  if (giaPct > 50 && giaTotal > 20000) {
+    findings.push({
+      severity: 'critical',
+      title: 'High GIA concentration',
+      body: `${giaPct.toFixed(0)}% of your portfolio is in a taxable GIA. Bed & ISA could shelter £20k/year.`,
+      tab: 'tax',
+    })
+  }
+
+  // Emergency fund
+  const monthlyOut = Math.abs(summary.monthly_outgoing_avg || 0)
+  const totalCash = summary.total_cash || 0
+  const emergencyMonths = monthlyOut > 0 ? totalCash / monthlyOut : 0
+  if (monthlyOut > 0 && emergencyMonths < 3) {
+    findings.push({
+      severity: 'critical',
+      title: 'Thin emergency fund',
+      body: `You have ${emergencyMonths.toFixed(1)} months of outgoings in cash. Aim for at least 3–6 months.`,
+      tab: 'networth',
+    })
+  }
+
+  // Cash drag
+  const moneyMarket = allHoldings.filter(h => /money market|cash fund/i.test(h.name || '')).reduce((s, h) => s + (h.value || 0), 0)
+  const cashDrag = totalCash + moneyMarket
+  const sixMonthBuffer = monthlyOut * 6 || 15000
+  const excess = Math.max(0, cashDrag - sixMonthBuffer)
+  if (excess > 20000) {
+    findings.push({
+      severity: 'opportunity',
+      title: 'Excess cash sitting idle',
+      body: `${fmt(excess)} above your 6-month buffer. Long-run equity returns beat cash by ~3% per year.`,
+      tab: 'goals',
+    })
+  }
+
+  // Mortgage rate
+  if (goals?.mortgage_rate && goals.mortgage_rate < 3 && goals?.mortgage_fix_ends) {
+    findings.push({
+      severity: 'action',
+      title: 'Mortgage reset coming',
+      body: `Your ${goals.mortgage_rate}% rate ends ${goals.mortgage_fix_ends}. Current 5-year fixes are higher — start researching early.`,
+      tab: 'networth',
+    })
+  }
+
+  // ISA underused
+  const isaTotal = allHoldings.filter(h => h.account_type === 'isa').reduce((s, h) => s + (h.value || 0), 0)
+  const isaPct = totalInv > 0 ? (isaTotal / totalInv) * 100 : 0
+  if (isaPct < 10 && totalInv > 30000) {
+    findings.push({
+      severity: 'action',
+      title: 'ISA underused',
+      body: `Only ${isaPct.toFixed(0)}% of your portfolio is in an ISA. The £20k yearly allowance is permanent — use it or lose it.`,
+      tab: 'tax',
+    })
+  }
+
+  // Sort by severity
+  const order = { critical: 0, action: 1, opportunity: 2, on_track: 3 }
+  findings.sort((a, b) => (order[a.severity] || 99) - (order[b.severity] || 99))
+
+  return findings.slice(0, 3)
+}
+
+export default function Dashboard({ finances: rawFinances, goals, onOpenActionPlan }) {
   const finances = useMemo(() => normalizeFinances(rawFinances), [rawFinances])
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('verdict')
   const isMobile = useIsMobile()
 
   const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'portfolio', label: 'Portfolio' },
-    { id: 'tax', label: 'Tax' },
-    { id: 'cashflow', label: 'Cash Flow' },
+    { id: 'verdict', label: 'Verdict' },
+    { id: 'networth', label: 'Net worth' },
     { id: 'goals', label: 'Goals' },
+    { id: 'portfolio', label: 'Portfolio' },
+    { id: 'cashflow', label: 'Cash flow' },
+    { id: 'tax', label: 'Tax' },
   ]
 
   return (
@@ -181,11 +379,150 @@ export default function Dashboard({ finances: rawFinances, goals }) {
         ))}
       </div>
 
-      {activeTab === 'overview' && <Overview finances={finances} goals={goals} />}
+      {activeTab === 'verdict' && <Verdict finances={finances} goals={goals} onOpenActionPlan={onOpenActionPlan} onJumpToTab={setActiveTab} />}
+      {activeTab === 'networth' && <Overview finances={finances} goals={goals} />}
       {activeTab === 'portfolio' && <Portfolio finances={finances} />}
       {activeTab === 'tax' && <TaxEfficiency finances={finances} />}
       {activeTab === 'cashflow' && <CashFlow finances={finances} />}
       {activeTab === 'goals' && <Goals finances={finances} goals={goals} />}
+    </>
+  )
+}
+
+function Verdict({ finances, goals, onOpenActionPlan, onJumpToTab }) {
+  const verdict = computeVerdict(finances, goals)
+  const score = verdict.score
+  const top3 = getTop3Findings(finances, goals)
+  const summary = finances?.summary || {}
+  const propertyEquity = goals?.property_equity || 0
+  const netWorth = (summary.net_worth || 0) + propertyEquity
+
+  // Color the verdict by status
+  const statusColors = {
+    ahead: { bg: 'rgba(15,123,108,0.06)', border: '#0F7B6C', text: '#0F7B6C', label: 'Ahead' },
+    on_track: { bg: 'rgba(15,123,108,0.06)', border: '#0F7B6C', text: '#0F7B6C', label: 'On track' },
+    slow: { bg: 'rgba(217,115,13,0.06)', border: '#D9730D', text: '#D9730D', label: 'Slow progress' },
+    behind: { bg: 'rgba(224,62,62,0.06)', border: '#E03E3E', text: '#E03E3E', label: 'Behind' },
+    no_goal: { bg: 'rgba(120,119,116,0.06)', border: COLORS.textMuted, text: COLORS.textMuted, label: 'No target set' },
+  }
+  const c = statusColors[verdict.status] || statusColors.no_goal
+  const scoreColor = score >= 75 ? COLORS.green : score >= 50 ? COLORS.coral : COLORS.red
+
+  const severityToColor = {
+    critical: '#E03E3E',
+    action: '#D9730D',
+    opportunity: '#0F7B6C',
+    on_track: '#0F7B6C',
+  }
+  const severityToTagColor = {
+    critical: 'red',
+    action: 'orange',
+    opportunity: 'green',
+    on_track: 'green',
+  }
+
+  return (
+    <>
+      {/* Hero verdict card */}
+      <Card style={{ borderLeft: `4px solid ${c.border}`, padding: '32px 36px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div style={{ flex: '1 1 360px', minWidth: 0 }}>
+            <div style={{ marginBottom: 12 }}>
+              <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: c.text, background: c.bg, padding: '4px 10px', borderRadius: 4, lineHeight: '20px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                {c.label}
+              </span>
+            </div>
+            <h2 style={{ fontFamily: 'inherit', fontSize: 28, fontWeight: 700, margin: '0 0 8px', lineHeight: 1.2, color: COLORS.text, letterSpacing: '-0.02em' }}>
+              {verdict.headline}
+            </h2>
+            <p style={{ fontSize: 15, color: COLORS.textMuted, margin: 0, lineHeight: 1.55 }}>
+              {verdict.sentence}
+            </p>
+            <div style={{ marginTop: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {onOpenActionPlan && (
+                <Button onClick={onOpenActionPlan} variant="primary">View action plan →</Button>
+              )}
+              <Button onClick={() => onJumpToTab && onJumpToTab('goals')} variant="secondary">See your projection</Button>
+            </div>
+          </div>
+
+          {/* Score ring */}
+          <div style={{ flex: '0 0 auto', textAlign: 'center', minWidth: 140 }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Health score</div>
+            <div style={{ fontSize: 56, fontWeight: 700, color: scoreColor, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{score}</div>
+            <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>out of 100</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* At-a-glance metrics row */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 24 }}>
+        <MetricCard label="Net Worth" value={fmt(netWorth)} sub={goals?.target_net_worth ? `Target ${fmt(goals.target_net_worth)}` : 'Total assets minus liabilities'} color={COLORS.accent} />
+        <MetricCard label="Investments" value={fmt(summary.total_investments)} sub="Liquid + retirement" />
+        {propertyEquity > 0 ? (
+          <MetricCard label="Home Equity" value={fmt(propertyEquity)} sub={goals?.property_value ? `${fmt(goals.property_value)} value` : ''} />
+        ) : (
+          <MetricCard label="Cash" value={fmt(summary.total_cash)} sub="Across all accounts" />
+        )}
+        <MetricCard
+          label="Net Monthly"
+          value={fmt((summary.monthly_income_avg || 0) + (summary.monthly_outgoing_avg || 0))}
+          sub="Income minus outgoing"
+          color={(summary.monthly_income_avg || 0) + (summary.monthly_outgoing_avg || 0) >= 0 ? COLORS.green : COLORS.red}
+        />
+      </div>
+
+      {/* Top 3 findings */}
+      {top3.length > 0 && (
+        <>
+          <SectionTitle>Top things to fix</SectionTitle>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {top3.map((f, i) => (
+              <Card key={i} style={{ borderLeft: `3px solid ${severityToColor[f.severity]}`, padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ marginBottom: 8 }}>
+                      <Tag color={severityToTagColor[f.severity]}>{f.severity.replace('_', ' ').toUpperCase()}</Tag>
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>{f.title}</div>
+                    <div style={{ fontSize: 13, color: COLORS.textMuted, lineHeight: 1.55 }}>{f.body}</div>
+                  </div>
+                  <button
+                    onClick={() => onJumpToTab && onJumpToTab(f.tab)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: COLORS.accent,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      padding: '4px 0',
+                      flexShrink: 0,
+                    }}
+                  >Open →</button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {top3.length === 0 && (
+        <>
+          <SectionTitle>Top things to fix</SectionTitle>
+          <Card>
+            <div style={{ fontSize: 14, color: COLORS.textMuted, lineHeight: 1.55 }}>
+              No critical issues spotted in your data. Open the Action plan for the full set of personalized recommendations.
+            </div>
+          </Card>
+        </>
+      )}
+
+      <div style={{ marginTop: 32, fontSize: 12, color: COLORS.textDim, textAlign: 'center' }}>
+        This is your snapshot. Use the tabs above to drill into the details.
+      </div>
     </>
   )
 }
