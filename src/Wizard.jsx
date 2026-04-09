@@ -77,6 +77,17 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
 
   const equity = (parseFloat(goals.property_value) || 0) - (parseFloat(goals.mortgage_balance) || 0)
 
+  // Format a numeric string with commas. Strips non-digits before formatting.
+  function formatMoney(raw) {
+    if (raw === '' || raw == null) return ''
+    const digits = String(raw).replace(/[^0-9]/g, '')
+    if (!digits) return ''
+    return parseInt(digits, 10).toLocaleString('en-GB')
+  }
+  function unformatMoney(formatted) {
+    return String(formatted || '').replace(/[^0-9]/g, '')
+  }
+
   const inputStyle = {
     width: '100%',
     padding: '10px 12px',
@@ -122,12 +133,12 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
 
         <div style={{ marginTop: 16 }}>
           <label style={labelStyle}>Target net worth (£)</label>
-          <input style={inputStyle} type="number" placeholder="1000000" value={goals.target_net_worth} onChange={e => update('target_net_worth', e.target.value)} />
+          <input style={inputStyle} type="text" inputMode="numeric" placeholder="1,000,000" value={formatMoney(goals.target_net_worth)} onChange={e => update('target_net_worth', unformatMoney(e.target.value))} />
         </div>
 
         <div style={{ marginTop: 16 }}>
           <label style={labelStyle}>Planned monthly savings (£)</label>
-          <input style={inputStyle} type="number" placeholder="2000" value={goals.monthly_savings} onChange={e => update('monthly_savings', e.target.value)} />
+          <input style={inputStyle} type="text" inputMode="numeric" placeholder="2,000" value={formatMoney(goals.monthly_savings)} onChange={e => update('monthly_savings', unformatMoney(e.target.value))} />
         </div>
 
         <div style={{ marginTop: 16 }}>
@@ -170,7 +181,7 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
           <>
             <div style={{ marginTop: 16 }}>
               <label style={labelStyle}>Estimated property value (£)</label>
-              <input style={inputStyle} type="number" placeholder="450000" value={goals.property_value} onChange={e => update('property_value', e.target.value)} />
+              <input style={inputStyle} type="text" inputMode="numeric" placeholder="450,000" value={formatMoney(goals.property_value)} onChange={e => update('property_value', unformatMoney(e.target.value))} />
             </div>
 
             {goals.owns_home === 'yes_mortgage' && (
@@ -178,7 +189,7 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginTop: 16 }}>
                   <div>
                     <label style={labelStyle}>Outstanding mortgage (£)</label>
-                    <input style={inputStyle} type="number" placeholder="250000" value={goals.mortgage_balance} onChange={e => update('mortgage_balance', e.target.value)} />
+                    <input style={inputStyle} type="text" inputMode="numeric" placeholder="250,000" value={formatMoney(goals.mortgage_balance)} onChange={e => update('mortgage_balance', unformatMoney(e.target.value))} />
                   </div>
                   <div>
                     <label style={labelStyle}>Estimated equity (£)</label>
@@ -219,7 +230,7 @@ export function GoalsForm({ initialGoals, onSubmit, onBack, isEditing }) {
         {goals.planning_to_move !== 'no' && (
           <div style={{ marginTop: 16 }}>
             <label style={labelStyle}>Target purchase price (£)</label>
-            <input style={inputStyle} type="number" placeholder="600000" value={goals.target_purchase_price} onChange={e => update('target_purchase_price', e.target.value)} />
+            <input style={inputStyle} type="text" inputMode="numeric" placeholder="600,000" value={formatMoney(goals.target_purchase_price)} onChange={e => update('target_purchase_price', unformatMoney(e.target.value))} />
           </div>
         )}
       </Card>
@@ -501,72 +512,46 @@ function UploadGuide() {
       tag: 'Bank',
       tagColor: 'blue',
       title: 'Bank statements',
-      sub: 'Last 12–24 months from your main current and savings accounts',
-      providers: [
-        { name: 'Monzo', steps: 'App → Account → Statements → Export (CSV or PDF, last 2 years)' },
-        { name: 'Starling', steps: 'App → Account → Statements → Email me a statement (CSV)' },
-        { name: 'Revolut', steps: 'App → Profile → Statements → Generate (CSV or PDF)' },
-        { name: 'HSBC, Barclays, Lloyds, NatWest, Santander', steps: 'Online banking → Statements → Export to CSV' },
-      ],
-      formats: 'CSV, PDF',
+      example: 'e.g. Monzo → Account → Statements → Export (last 2 years)',
     },
     {
       tag: 'Investments',
       tagColor: 'green',
-      title: 'Investment accounts (ISA, GIA, brokerage)',
-      sub: 'Current holdings and 12 months of transactions',
-      providers: [
-        { name: 'Vanguard UK', steps: 'vanguardinvestor.co.uk → Portfolio → Download (Excel)' },
-        { name: 'Trading 212', steps: 'App → History → Export → CSV (select all-time)' },
-        { name: 'Hargreaves Lansdown', steps: 'My Account → Account history → Download → CSV' },
-        { name: 'AJ Bell, interactive investor, Freetrade', steps: 'Account history → Export / Download → CSV or Excel' },
-      ],
-      formats: 'CSV, Excel, PDF',
+      title: 'ISA, GIA, brokerage',
+      example: 'e.g. Vanguard → Portfolio → Download holdings',
     },
     {
       tag: 'Pension',
       tagColor: 'purple',
-      title: 'Pensions (workplace and SIPP)',
-      sub: 'Latest pension statement showing balance and contributions',
-      providers: [
-        { name: 'Workplace pension (Aviva, Scottish Widows, Standard Life, L&G, NEST)', steps: 'Provider portal → Statements → Latest annual statement (PDF)' },
-        { name: 'SIPP', steps: 'Same as your investment platform — find the holdings export' },
-      ],
-      formats: 'PDF, CSV',
+      title: 'Workplace or SIPP',
+      example: 'e.g. Aviva → Statements → Latest annual statement',
     },
     {
       tag: 'Mortgage',
       tagColor: 'orange',
-      title: 'Mortgage statement (if you have one)',
-      sub: 'Latest annual statement or current balance letter',
-      providers: [
-        { name: 'Santander, Halifax, Nationwide, NatWest etc.', steps: 'Mortgage provider portal → Statements → Annual mortgage statement (PDF)' },
-      ],
-      formats: 'PDF',
+      title: 'Mortgage statement',
+      example: 'e.g. Santander → Statements → Annual mortgage statement',
     },
   ]
 
   return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 12, letterSpacing: '-0.01em' }}>What to upload</div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 10, letterSpacing: '-0.01em' }}>What to upload</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 10 }}>
         {categories.map((c, i) => (
-          <Card key={i} style={{ padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div key={i} style={{
+            background: '#FFFFFF',
+            border: `1px solid ${COLORS.cardBorder}`,
+            borderRadius: 8,
+            padding: '12px 14px',
+            boxShadow: 'rgba(15,15,15,0.04) 0px 1px 3px',
+          }}>
+            <div style={{ marginBottom: 6 }}>
               <Tag color={c.tagColor}>{c.tag}</Tag>
-              <span style={{ fontSize: 11, color: COLORS.textDim }}>{c.formats}</span>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 4 }}>{c.title}</div>
-            <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 12, lineHeight: 1.5 }}>{c.sub}</div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {c.providers.map((p, j) => (
-                <div key={j} style={{ fontSize: 12, lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 500, color: COLORS.text }}>{p.name}</div>
-                  <div style={{ color: COLORS.textMuted }}>{p.steps}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
+            <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 4, lineHeight: 1.3 }}>{c.title}</div>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.45 }}>{c.example}</div>
+          </div>
         ))}
       </div>
     </div>
