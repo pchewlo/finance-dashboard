@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { COLORS, MetricCard, SectionTitle, Card, DataRow, ChartCanvas, Legend, chartDefaults, useIsMobile, fmt, fmtK, fmtM } from './ui.jsx'
+import { COLORS, MetricCard, SectionTitle, Card, DataRow, ChartCanvas, Legend, chartDefaults, useIsMobile, fmt, fmtK, fmtM, Button, Tag } from './ui.jsx'
 
 // === ANALYTICS HELPERS ===
 
